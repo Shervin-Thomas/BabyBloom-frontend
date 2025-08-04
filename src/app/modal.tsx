@@ -8,7 +8,7 @@ export default function ModalScreen() {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Modal</Text>
-      <View style={styles.separator} lightColor="#eee" darkColor="rgba(255,255,255,0.1)" />
+      <View style={styles.separator} lightColor="rgba(255,255,255,0.3)" darkColor="rgba(255,255,255,0.3)" />
       <EditScreenInfo path="app/modal.tsx" />
 
       {/* Use a light status bar on iOS to account for the black space above the modal */}
@@ -22,10 +22,12 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: '#FC7596',
   },
   title: {
     fontSize: 20,
     fontWeight: 'bold',
+    color: 'white',
   },
   separator: {
     marginVertical: 30,
@@ -33,3 +35,4 @@ const styles = StyleSheet.create({
     width: '80%',
   },
 });
+

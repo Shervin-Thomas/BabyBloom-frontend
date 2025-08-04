@@ -24,10 +24,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: 20,
+    backgroundColor: '#FC7596',
   },
   title: {
     fontSize: 20,
     fontWeight: 'bold',
+    color: 'white',
   },
   link: {
     marginTop: 15,
@@ -35,6 +37,8 @@ const styles = StyleSheet.create({
   },
   linkText: {
     fontSize: 14,
-    color: '#2e78b7',
+    color: 'white',
+    textDecorationLine: 'underline',
   },
 });
+
