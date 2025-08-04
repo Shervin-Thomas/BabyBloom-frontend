@@ -19,18 +19,60 @@ export default function Register({ onSwitchToLogin }: RegisterProps) {
       return;
     }
     
-    const { error } = await supabase.auth.signUp({ 
-      email, 
-      password,
-      options: {
-        data: {
-          full_name: fullName,
-          dob: dateOfBirth
+    try {
+      const { data, error } = await supabase.auth.signUp({ 
+        email, 
+        password,
+        options: {
+          data: {
+            full_name: fullName,
+            date_of_birth: dateOfBirth
+          }
         }
+      });
+      
+      if (error) {
+        Alert.alert('Registration failed', error.message);
+        return;
       }
-    });
-    
-    if (error) Alert.alert('Registration failed', error.message);
+
+      if (data.user) {
+        // Always redirect to login after registration
+        Alert.alert(
+          'Check Your Email', 
+          'We sent you a confirmation email. Please check your inbox and click the confirmation link, then return to login.',
+          [
+            {
+              text: 'Go to Login',
+              onPress: () => onSwitchToLogin?.()
+            }
+          ]
+        );
+      }
+    } catch (error) {
+      console.error('Registration error:', error);
+      Alert.alert('Registration failed', 'An unexpected error occurred');
+    }
+  };
+
+  const createUserProfile = async (userId: string) => {
+    try {
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .insert({
+          id: userId,
+          full_name: fullName,
+          email: email,
+          date_of_birth: dateOfBirth
+        });
+
+      if (profileError) {
+        console.error('Profile creation error:', profileError);
+        Alert.alert('Profile creation failed', profileError.message);
+      }
+    } catch (error) {
+      console.error('Profile creation error:', error);
+    }
   };
 
   return (
