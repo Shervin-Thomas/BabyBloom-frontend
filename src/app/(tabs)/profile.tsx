@@ -102,11 +102,18 @@ export default function ProfileTab() {
             <Text style={styles.label}>Email:</Text>
             <Text style={styles.value}>{profile.email}</Text>
           </View>
-          
+
+          {profile.phone && (
+            <View style={styles.infoContainer}>
+              <Text style={styles.label}>Phone:</Text>
+              <Text style={styles.value}>{profile.phone}</Text>
+            </View>
+          )}
+
           {profile.date_of_birth && (
             <View style={styles.infoContainer}>
               <Text style={styles.label}>Date of Birth:</Text>
-              <Text style={styles.value}>{profile.date_of_birth}</Text>
+              <Text style={styles.value}>{new Date(profile.date_of_birth).toLocaleDateString()}</Text>
             </View>
           )}
           
@@ -172,6 +179,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
+
 
 
 

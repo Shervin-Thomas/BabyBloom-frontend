@@ -1,5 +1,6 @@
-import { View, Text, TextInput, TouchableOpacity, Alert, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, Alert, ScrollView, StyleSheet, Platform } from 'react-native';
 import { useState } from 'react';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { supabase } from 'lib/supabase';
 
 interface RegisterProps {
@@ -9,9 +10,25 @@ interface RegisterProps {
 export default function Register({ onSwitchToLogin }: RegisterProps) {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [dateOfBirth, setDateOfBirth] = useState('');
+  const [dateOfBirth, setDateOfBirth] = useState(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
+
+  const formatDate = (date: Date) => {
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  };
+
+  const onDateChange = (event: any, selectedDate?: Date) => {
+    const currentDate = selectedDate || dateOfBirth;
+    setShowDatePicker(Platform.OS === 'ios');
+    setDateOfBirth(currentDate);
+  };
 
   const handleRegister = async () => {
     if (password !== confirmPassword) {
@@ -26,8 +43,10 @@ export default function Register({ onSwitchToLogin }: RegisterProps) {
         options: {
           data: {
             full_name: fullName,
-            date_of_birth: dateOfBirth
-          }
+            phone: phone,
+            date_of_birth: dateOfBirth.toISOString().split('T')[0]
+          },
+          emailRedirectTo: 'https://shervin-thomas.github.io/BabyBloom-frontend/confirmation.html'
         }
       });
       
@@ -37,7 +56,9 @@ export default function Register({ onSwitchToLogin }: RegisterProps) {
       }
 
       if (data.user) {
-        // Always redirect to login after registration
+        // Create profile in database
+        await createUserProfile(data.user.id);
+        
         Alert.alert(
           'Check Your Email', 
           'We sent you a confirmation email. Please check your inbox and click the confirmation link, then return to login.',
@@ -63,12 +84,12 @@ export default function Register({ onSwitchToLogin }: RegisterProps) {
           id: userId,
           full_name: fullName,
           email: email,
-          date_of_birth: dateOfBirth
+          phone: phone,
+          date_of_birth: dateOfBirth.toISOString().split('T')[0]
         });
 
       if (profileError) {
         console.error('Profile creation error:', profileError);
-        Alert.alert('Profile creation failed', profileError.message);
       }
     } catch (error) {
       console.error('Profile creation error:', error);
@@ -111,8 +132,22 @@ export default function Register({ onSwitchToLogin }: RegisterProps) {
             placeholder="Email ID"
             style={styles.input}
             autoCapitalize="none"
+            keyboardType="email-address"
             onChangeText={setEmail}
             value={email}
+            placeholderTextColor="rgba(255, 255, 255, 0.6)"
+          />
+        </View>
+        
+        {/* Phone Input */}
+        <View style={styles.inputContainer}>
+          <Text style={styles.inputIcon}>📱</Text>
+          <TextInput
+            placeholder="Phone Number"
+            style={styles.input}
+            keyboardType="phone-pad"
+            onChangeText={setPhone}
+            value={phone}
             placeholderTextColor="rgba(255, 255, 255, 0.6)"
           />
         </View>
@@ -143,17 +178,32 @@ export default function Register({ onSwitchToLogin }: RegisterProps) {
           />
         </View>
         
-        {/* Date of Birth Input */}
-        <View style={styles.inputContainer}>
+        {/* Date of Birth Picker */}
+        <TouchableOpacity 
+          style={styles.inputContainer} 
+          onPress={() => setShowDatePicker(true)}
+        >
           <Text style={styles.inputIcon}>📅</Text>
-          <TextInput
-            placeholder="Date of Birth"
-            style={styles.input}
-            onChangeText={setDateOfBirth}
+          <View style={styles.datePickerContainer}>
+            <Text style={styles.dateText}>
+              {formatDate(dateOfBirth)}
+            </Text>
+            <Text style={styles.dateLabel}>Date of Birth</Text>
+          </View>
+        </TouchableOpacity>
+
+        {showDatePicker && (
+          <DateTimePicker
+            testID="dateTimePicker"
             value={dateOfBirth}
-            placeholderTextColor="rgba(255, 255, 255, 0.6)"
+            mode="date"
+            is24Hour={true}
+            display="default"
+            onChange={onDateChange}
+            maximumDate={new Date()}
+            minimumDate={new Date(1900, 0, 1)}
           />
-        </View>
+        )}
         
         <TouchableOpacity style={styles.registerButton} onPress={handleRegister}>
           <Text style={styles.registerButtonText}>Register</Text>
@@ -259,6 +309,18 @@ const styles = StyleSheet.create({
     flex: 1,
     color: 'white',
     fontSize: 16,
+  },
+  datePickerContainer: {
+    flex: 1,
+  },
+  dateText: {
+    color: 'white',
+    fontSize: 16,
+  },
+  dateLabel: {
+    color: 'rgba(255, 255, 255, 0.6)',
+    fontSize: 12,
+    marginTop: 2,
   },
   registerButton: {
     backgroundColor: 'white',
