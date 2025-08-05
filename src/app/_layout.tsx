@@ -8,12 +8,16 @@ import 'react-native-reanimated';
 
 import { useColorScheme } from '@/components/useColorScheme';
 import { supabase } from 'lib/supabase';
+import CustomSplashScreen from '@/components/SplashScreen';
 
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const [loaded, error] = useFonts({
     ...FontAwesome.font,
+    'Quicksand-Bold': require('../../assets/fonts/Quicksand-Bold.ttf'),
+    'Quicksand-SemiBold': require('../../assets/fonts/Quicksand-SemiBold.ttf'),
+    'Pacifico-Regular': require('../../assets/fonts/Pacifico-Regular.ttf'),
   });
 
   useEffect(() => {
@@ -38,8 +42,13 @@ function RootLayoutNav() {
 
   useEffect(() => {
     const checkSession = async () => {
+      // Show splash for at least 5 seconds for better UX
+      const minSplashTime = new Promise(resolve => setTimeout(resolve, 5000));
+      
       const { data } = await supabase.auth.getSession();
       setIsLoggedIn(!!data.session);
+
+      await minSplashTime;
       setCheckingSession(false);
 
       supabase.auth.onAuthStateChange((_event, session) => {
@@ -50,16 +59,14 @@ function RootLayoutNav() {
     checkSession();
   }, []);
 
-  if (checkingSession) return null;
+  if (checkingSession) return <CustomSplashScreen />;
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <Stack screenOptions={{ headerShown: false }}>
         {isLoggedIn ? (
-          // Show main app tabs after login
           <Stack.Screen name="(tabs)" />
         ) : (
-          // Show auth screens if not logged in
           <>
             <Stack.Screen name="login" />
             <Stack.Screen name="register" />
@@ -69,4 +76,9 @@ function RootLayoutNav() {
     </ThemeProvider>
   );
 }
+
+
+
+
+
 

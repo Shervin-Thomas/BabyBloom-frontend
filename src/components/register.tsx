@@ -1,4 +1,4 @@
-import { View, Text, TextInput, TouchableOpacity, Alert, ScrollView, StyleSheet, Platform } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, Alert, ScrollView, StyleSheet, Platform, Image } from 'react-native';
 import { useState } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -118,7 +118,11 @@ export default function Register({ onSwitchToLogin }: RegisterProps) {
                 colors={['#FFFFFF', '#F8FAFC']}
                 style={styles.logoCircle}
               >
-                <Text style={styles.logoEmoji}>🌸</Text>
+                <Image
+                  source={require('../../assets/images/logo.png')}
+                  style={styles.logoImage}
+                  resizeMode="contain"
+                />
               </LinearGradient>
             </View>
             <Text style={styles.appName}>Join BabyBloom</Text>
@@ -324,17 +328,20 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 8,
   },
-  logoEmoji: {
-    fontSize: 36,
+  logoImage: {
+    width: 80,
+    height: 80,
   },
   appName: {
-    fontSize: 28,
-    fontWeight: 'bold',
+    fontSize: 42,
     color: 'white',
+    textAlign: 'center',
     marginBottom: 8,
-    textShadowColor: 'rgba(0, 0, 0, 0.1)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
+    textShadowColor: 'rgba(0, 0, 0, 0.4)',
+    textShadowOffset: { width: 0, height: 3 },
+    textShadowRadius: 8,
+    letterSpacing: 1,
+    fontFamily: 'Pacifico-Regular',
   },
   subtitle: {
     fontSize: 16,

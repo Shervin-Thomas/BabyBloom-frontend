@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet, Platform, StatusBar } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFonts } from 'expo-font';
 
 interface GradientHeaderProps {
   title: string;
@@ -9,6 +10,13 @@ interface GradientHeaderProps {
 
 export default function GradientHeader({ title, subtitle }: GradientHeaderProps) {
   const insets = useSafeAreaInsets();
+  const [loaded] = useFonts({
+    'Pacifico-Regular': require('../../assets/fonts/Pacifico-Regular.ttf'),
+  });
+
+  if (!loaded) {
+    return null;
+  }
 
   return (
     <LinearGradient
@@ -40,9 +48,10 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: 'white',
     textAlign: 'center',
-    textShadowColor: 'rgba(0, 0, 0, 0.1)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+    fontFamily: 'Pacifico-Regular',
   },
   subtitle: {
     fontSize: 16,
@@ -51,3 +60,4 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
 });
+
