@@ -38,32 +38,45 @@ export default function TabsLayout() {
         headerShown: false, // Hide default headers since we use custom ones
       }}
     >
-      <Tabs.Screen 
-        name="index" 
-        options={{ 
+      <Tabs.Screen
+        name="index"
+        options={{
           title: "Home",
           tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons 
-              name={focused ? "home" : "home-outline"} 
-              size={size} 
-              color={color} 
+            <Ionicons
+              name={focused ? "home" : "home-outline"}
+              size={size}
+              color={color}
             />
           ),
-        }} 
+        }}
       />
-      <Tabs.Screen 
-        name="shop" 
-        options={{ 
+      <Tabs.Screen
+        name="community"
+        options={{
+          title: "Community",
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons
+              name={focused ? "people" : "people-outline"}
+              size={size}
+              color={color}
+            />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="shop"
+        options={{
           title: "Shop",
           tabBarIcon: ({ color, size, focused }) => (
-            <CartIcon 
+            <CartIcon
               color={color}
               size={size}
               focused={focused}
               cartCount={cartCount}
             />
           ),
-        }} 
+        }}
       />
       <Tabs.Screen 
         name="profile" 

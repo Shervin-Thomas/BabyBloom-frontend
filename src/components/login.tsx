@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from 'lib/supabase';
+import { googleAuthService } from 'lib/googleAuth';
 
 interface LoginProps {
   onSwitchToRegister?: () => void;
@@ -16,6 +17,22 @@ export default function Login({ onSwitchToRegister }: LoginProps) {
   const handleLogin = async () => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) Alert.alert('Login failed', error.message);
+  };
+
+  const handleGoogleSignIn = async () => {
+    console.log('🔘 Google button clicked in Login component');
+    try {
+      const { data, error } = await googleAuthService.signInWithGoogle();
+      if (error) {
+        console.error('❌ Login: Google sign-in failed:', error);
+        Alert.alert('Google Sign-In Failed', error.message || 'An error occurred during Google sign-in');
+      } else {
+        console.log('✅ Login: Google sign-in successful:', data);
+      }
+    } catch (err) {
+      console.error('💥 Login: Unexpected error:', err);
+      Alert.alert('Error', 'An unexpected error occurred');
+    }
   };
 
   return (
@@ -112,9 +129,13 @@ export default function Login({ onSwitchToRegister }: LoginProps) {
             </View>
             
             {/* Google Button */}
-            <TouchableOpacity style={styles.googleButton}>
+            <TouchableOpacity style={styles.googleButton} onPress={handleGoogleSignIn}>
               <View style={styles.googleContent}>
-                <Text style={styles.googleIcon}>G</Text>
+                <Image
+                  source={{ uri: 'https://developers.google.com/identity/images/g-logo.png' }}
+                  style={styles.googleLogo}
+                  resizeMode="contain"
+                />
                 <Text style={styles.googleText}>Continue with Google</Text>
               </View>
             </TouchableOpacity>
@@ -286,10 +307,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 16,
   },
-  googleIcon: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#4285F4',
+  googleLogo: {
+    width: 20,
+    height: 20,
     marginRight: 12,
   },
   googleText: {

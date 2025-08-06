@@ -1,9 +1,10 @@
-import { View, Text, TextInput, TouchableOpacity, Alert, ScrollView, StyleSheet, Platform, Image } from 'react-native';
-import { useState } from 'react';
+import { View, Text, TextInput, TouchableOpacity, Alert, ScrollView, StyleSheet, Platform, Image, Modal } from 'react-native';
+import { useState, useEffect } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { supabase } from 'lib/supabase';
+import { googleAuthService } from 'lib/googleAuth';
 
 interface RegisterProps {
   onSwitchToLogin?: () => void;
@@ -19,6 +20,7 @@ export default function Register({ onSwitchToLogin }: RegisterProps) {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [showConfirmationModal, setShowConfirmationModal] = useState(false);
 
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('en-US', {
@@ -34,24 +36,25 @@ export default function Register({ onSwitchToLogin }: RegisterProps) {
     setDateOfBirth(currentDate);
   };
 
-  const createUserProfile = async (userId: string) => {
-    const { error } = await supabase
-      .from('profiles')
-      .insert({
-        id: userId,
-        full_name: fullName,
-        email: email,
-        phone: phone,
-        date_of_birth: dateOfBirth.toISOString().split('T')[0],
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      });
+  // Auto-redirect to login after showing confirmation modal for 2 seconds
+  useEffect(() => {
+    let timeoutId: any;
 
-    if (error) {
-      console.error('Error creating profile:', error);
-      throw error;
+    if (showConfirmationModal) {
+      timeoutId = setTimeout(() => {
+        setShowConfirmationModal(false);
+        onSwitchToLogin?.();
+      }, 2000); // Show modal for 2 seconds then redirect
     }
-  };
+
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, [showConfirmationModal, onSwitchToLogin]);
+
+
 
   const handleRegister = async () => {
     if (password !== confirmPassword) {
@@ -63,10 +66,10 @@ export default function Register({ onSwitchToLogin }: RegisterProps) {
       Alert.alert('Error', 'Please fill in all required fields');
       return;
     }
-    
+
     try {
-      const { data, error } = await supabase.auth.signUp({ 
-        email, 
+      const { data, error } = await supabase.auth.signUp({
+        email,
         password,
         options: {
           data: {
@@ -77,29 +80,26 @@ export default function Register({ onSwitchToLogin }: RegisterProps) {
           emailRedirectTo: 'https://shervin-thomas.github.io/BabyBloom-frontend/confirmation.html'
         }
       });
-      
+
       if (error) {
         Alert.alert('Registration failed', error.message);
         return;
       }
 
       if (data.user) {
-        await createUserProfile(data.user.id);
-        
-        Alert.alert(
-          'Check Your Email', 
-          'We sent you a confirmation email. Please check your inbox and click the confirmation link, then return to login.',
-          [
-            {
-              text: 'Go to Login',
-              onPress: () => onSwitchToLogin?.()
-            }
-          ]
-        );
+        setShowConfirmationModal(true);
       }
     } catch (error: any) {
       Alert.alert('Registration failed', error.message);
     }
+  };
+
+  const handleGoogleSignIn = async () => {
+    const { data, error } = await googleAuthService.signInWithGoogle();
+    if (error) {
+      Alert.alert('Google Sign-In Failed', error.message || 'An error occurred during Google sign-in');
+    }
+    // Success is handled by the auth state listener in the parent component
   };
 
   return (
@@ -274,9 +274,13 @@ export default function Register({ onSwitchToLogin }: RegisterProps) {
             </View>
             
             {/* Google Button */}
-            <TouchableOpacity style={styles.googleButton}>
+            <TouchableOpacity style={styles.googleButton} onPress={handleGoogleSignIn}>
               <View style={styles.googleContent}>
-                <Text style={styles.googleIcon}>G</Text>
+                <Image
+                  source={{ uri: 'https://developers.google.com/identity/images/g-logo.png' }}
+                  style={styles.googleLogo}
+                  resizeMode="contain"
+                />
                 <Text style={styles.googleText}>Continue with Google</Text>
               </View>
             </TouchableOpacity>
@@ -291,6 +295,38 @@ export default function Register({ onSwitchToLogin }: RegisterProps) {
           </View>
         </View>
       </ScrollView>
+
+      {/* Email Confirmation Modal */}
+      <Modal
+        visible={showConfirmationModal}
+        transparent={true}
+        animationType="fade"
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <LinearGradient
+              colors={['#FC7596', '#FF9A9E', '#FECFEF']}
+              style={styles.modalGradient}
+            >
+              <View style={styles.modalContent}>
+                <View style={styles.emailIconContainer}>
+                  <Text style={styles.emailIcon}>📧</Text>
+                </View>
+
+                <Text style={styles.modalTitle}>Check Your Email</Text>
+
+                <Text style={styles.modalMessage}>
+                  We sent you a confirmation email. Please check your inbox and click the confirmation link to activate your account.
+                </Text>
+
+                <View style={styles.sparkleContainer}>
+                  <Text style={styles.sparkleText}>✨ Redirecting to login in a moment... ✨</Text>
+                </View>
+              </View>
+            </LinearGradient>
+          </View>
+        </View>
+      </Modal>
     </LinearGradient>
   );
 }
@@ -440,10 +476,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 16,
   },
-  googleIcon: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#4285F4',
+  googleLogo: {
+    width: 20,
+    height: 20,
     marginRight: 12,
   },
   googleText: {
@@ -466,5 +501,75 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     textDecorationLine: 'underline',
+  },
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContainer: {
+    width: '90%',
+    maxWidth: 400,
+  },
+  modalGradient: {
+    borderRadius: 20,
+    padding: 0,
+  },
+  modalContent: {
+    padding: 40,
+    alignItems: 'center',
+  },
+  emailIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  emailIcon: {
+    fontSize: 40,
+  },
+  modalTitle: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: 'white',
+    textAlign: 'center',
+    marginBottom: 20,
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+  },
+  modalMessage: {
+    fontSize: 16,
+    color: 'white',
+    textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: 20,
+    opacity: 0.9,
+  },
+  sparkleContainer: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 15,
+    padding: 15,
+    marginBottom: 30,
+  },
+  sparkleText: {
+    fontSize: 14,
+    color: 'white',
+    textAlign: 'center',
+    fontWeight: '600',
+  },
+  loadingContainer: {
+    alignItems: 'center',
+  },
+  waitingText: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.8)',
+    textAlign: 'center',
+    fontStyle: 'italic',
   },
 });

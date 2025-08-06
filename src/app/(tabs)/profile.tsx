@@ -31,7 +31,7 @@ export default function ProfileTab() {
         await loadProfile(session.user.id);
       } else {
         setProfile(null);
-        // If no session, default to login
+        // If no session or email not confirmed, default to login
         setAuthMode('login');
       }
     });
@@ -68,6 +68,7 @@ export default function ProfileTab() {
           id: user.id,
           full_name: user.user_metadata?.full_name || '',
           email: user.email || '',
+          phone: user.user_metadata?.phone || '',
           date_of_birth: user.user_metadata?.date_of_birth || '',
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()

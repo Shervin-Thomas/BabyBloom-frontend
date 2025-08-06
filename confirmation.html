@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Email Verified - BabyBloom</title>
+    <link href="https://fonts.googleapis.com/css2?family=Pacifico&display=swap" rel="stylesheet">
     <style>
         * {
             margin: 0;
@@ -64,16 +65,26 @@
             margin-bottom: 30px;
         }
         
-        .app-icon {
-            font-size: 50px;
+        .app-logo-container {
             margin-bottom: 15px;
         }
-        
+
+        .app-logo {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            object-fit: contain;
+            background: white;
+            padding: 5px;
+            box-shadow: 0 4px 15px rgba(252, 117, 150, 0.3);
+        }
+
         .app-name {
-            font-size: 24px;
-            font-weight: bold;
+            font-family: 'Pacifico', cursive;
+            font-size: 32px;
             color: #FC7596;
             margin-bottom: 15px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
         }
         
         .instruction {
@@ -109,11 +120,14 @@
         
         <p class="subtitle">
             Your email has been successfully confirmed.<br>
-            Welcome to the BabyBloom family! 🌸
+            Welcome to the BabyBloom family! 🌸<br><br>
+            <strong>Redirecting you back to the app...</strong>
         </p>
         
         <div class="app-section">
-            <div class="app-icon">👶</div>
+            <div class="app-logo-container">
+                <img src="./assets/images/logo.png" alt="BabyBloom Logo" class="app-logo">
+            </div>
             <div class="app-name">BabyBloom</div>
             <p class="instruction">
                 Please go back to the app to continue your journey
@@ -124,5 +138,12 @@
             You can now close this page and return to the BabyBloom app
         </p>
     </div>
+
+    <script>
+        // Auto-close after 2 seconds
+        setTimeout(function() {
+            window.close();
+        }, 2000);
+    </script>
 </body>
 </html>
