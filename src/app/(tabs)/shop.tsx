@@ -60,7 +60,11 @@ export default function ShopScreen() {
         title="🛍️ Shop" 
         subtitle="Everything for your pregnancy journey"
       />
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.content}
+        contentContainerStyle={styles.scrollContainer}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Cart Preview Card */}
         <View style={styles.cartPreviewCard}>
           <View style={styles.cartHeader}>
@@ -124,6 +128,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 100,
+  },
+  scrollContainer: {
+    paddingBottom: 100, // Extra padding at bottom for tab bar
+    flexGrow: 1,
   },
   cartPreviewCard: {
     backgroundColor: 'white',

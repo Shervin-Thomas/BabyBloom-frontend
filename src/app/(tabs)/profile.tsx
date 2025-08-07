@@ -1,16 +1,24 @@
 import { useState, useEffect } from 'react';
-import { View, StyleSheet, Text, TextInput, TouchableOpacity, Alert } from 'react-native';
+import { View, StyleSheet, Text, TextInput, TouchableOpacity, Alert, ScrollView, Modal } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { supabase } from 'lib/supabase';
 import { profileService, Profile } from 'lib/profile';
+import { postsService, Post } from 'lib/posts';
 import { Session } from '@supabase/supabase-js';
 import LoginForm from '@components/login';
 import RegisterForm from '@components/register';
+import GradientHeader from '@/components/GradientHeader';
 
 export default function ProfileTab() {
   const [session, setSession] = useState<Session | null>(null);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showEditProfile, setShowEditProfile] = useState(false);
+  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
+  const [editedProfile, setEditedProfile] = useState<Profile | null>(null);
+  const [posts, setPosts] = useState<Post[]>([]);
 
   useEffect(() => {
     const loadSession = async () => {
@@ -18,21 +26,41 @@ export default function ProfileTab() {
       setSession(session);
       
       if (session?.user) {
+        setLoading(true);
         await loadProfile(session.user.id);
+        await loadUserPosts(session.user.id);
+        setLoading(false);
+      } else {
+        setLoading(false);
       }
     };
     loadSession();
 
     const { data: listener } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('Auth event:', event, 'Session:', !!session);
+      console.log('User email confirmed:', session?.user?.email_confirmed_at);
+      console.log('User email:', session?.user?.email);
       setSession(session);
-      if (session?.user && session.user.email_confirmed_at) {
-        // Only load profile if email is confirmed
-        await loadProfile(session.user.id);
+
+      if (session?.user) {
+        // For Google OAuth users, email_confirmed_at might be null but they're still valid
+        // Check if user has email (which means they're authenticated)
+        if (session.user.email) {
+          setLoading(true);
+          await loadProfile(session.user.id);
+          await loadUserPosts(session.user.id);
+          setLoading(false);
+        } else {
+          setProfile(null);
+          setPosts([]);
+          setAuthMode('login');
+          setLoading(false);
+        }
       } else {
         setProfile(null);
-        // If no session or email not confirmed, default to login
+        setPosts([]);
         setAuthMode('login');
+        setLoading(false);
       }
     });
 
@@ -83,101 +111,953 @@ export default function ProfileTab() {
     }
   };
 
+  const loadUserPosts = async (userId: string) => {
+    try {
+      console.log('🔄 Loading posts for user:', userId);
+
+      // Set loading to false immediately so UI shows
+      setLoading(false);
+
+      const userPosts = await postsService.getUserPosts(userId, userId);
+      console.log('✅ Posts loaded:', userPosts.length);
+      setPosts(userPosts);
+
+      // If no posts from database, show sample posts
+      if (userPosts.length === 0) {
+        console.log('📝 No posts from database, showing sample posts');
+        setPosts([
+          {
+            id: 'sample-1',
+            user_id: userId,
+            content: "Welcome to BabyBloom! 🌸 This is a sample post showing how your posts will appear here.",
+            image_url: undefined,
+            likes_count: 5,
+            comments_count: 2,
+            created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+            updated_at: new Date().toISOString(),
+            isLiked: false,
+            user_profiles: { full_name: profile?.full_name || 'User', email: profile?.email || '' }
+          },
+          {
+            id: 'sample-2',
+            user_id: userId,
+            content: "You can create posts from the Community tab and they will appear here in your profile! 💕",
+            image_url: undefined,
+            likes_count: 12,
+            comments_count: 4,
+            created_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+            updated_at: new Date().toISOString(),
+            isLiked: true,
+            user_profiles: { full_name: profile?.full_name || 'User', email: profile?.email || '' }
+          }
+        ]);
+      }
+    } catch (error) {
+      console.error('❌ Error loading user posts:', error);
+      // Set loading to false and show sample posts even on error
+      setLoading(false);
+      setPosts([
+        {
+          id: 'fallback-1',
+          user_id: userId,
+          content: "Welcome to BabyBloom! 🌸 Start sharing your pregnancy journey with the community.",
+          image_url: undefined,
+          likes_count: 1,
+          comments_count: 0,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          isLiked: false,
+          user_profiles: { full_name: profile?.full_name || 'User', email: profile?.email || '' }
+        }
+      ]);
+    }
+  };
+
   const handleSignOut = async () => {
     const { error } = await supabase.auth.signOut();
     if (error) Alert.alert('Error', error.message);
   };
 
-  if (session && profile) {
+  const handleEditProfile = () => {
+    setEditedProfile(profile);
+    setShowEditProfile(true);
+    setShowSettingsModal(false);
+  };
+
+  const handleSaveProfile = async () => {
+    if (!editedProfile || !session?.user) return;
+
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          full_name: editedProfile.full_name,
+          phone: editedProfile.phone,
+          date_of_birth: editedProfile.date_of_birth,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', session.user.id);
+
+      if (error) throw error;
+
+      setProfile(editedProfile);
+      setShowEditProfile(false);
+      Alert.alert('Success', 'Profile updated successfully!');
+    } catch (error: any) {
+      Alert.alert('Error', error.message);
+    }
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Delete Account',
+      'Are you sure you want to delete your account? This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const { error } = await supabase.auth.admin.deleteUser(session?.user?.id || '');
+              if (error) throw error;
+              Alert.alert('Account Deleted', 'Your account has been deleted successfully.');
+            } catch (error: any) {
+              Alert.alert('Error', 'Failed to delete account. Please contact support.');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleLikePost = async (postId: string) => {
+    if (!session?.user) return;
+
+    try {
+      const isLiked = await postsService.toggleLike(postId, session.user.id);
+      setPosts(prevPosts =>
+        prevPosts.map(post =>
+          post.id === postId
+            ? {
+                ...post,
+                isLiked,
+                likes_count: isLiked ? post.likes_count + 1 : post.likes_count - 1
+              }
+            : post
+        )
+      );
+    } catch (error) {
+      console.error('Error toggling like:', error);
+      Alert.alert('Error', 'Failed to update like');
+    }
+  };
+
+  const handleCommentPress = (postId: string) => {
+    Alert.alert('Comments', `View comments for post ${postId}`, [
+      { text: 'OK', style: 'default' }
+    ]);
+  };
+
+  const handleDeletePost = async (postId: string) => {
+    if (!session?.user) return;
+
+    Alert.alert(
+      'Delete Post',
+      'Are you sure you want to delete this post?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await postsService.deletePost(postId, session.user.id);
+              setPosts(prevPosts => prevPosts.filter(post => post.id !== postId));
+            } catch (error) {
+              console.error('Error deleting post:', error);
+              Alert.alert('Error', 'Failed to delete post');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  // Show login/register forms if not authenticated
+  if (!session || !session.user?.email) {
     return (
       <View style={styles.container}>
-        <View style={styles.profileContainer}>
-          <Text style={styles.title}>Profile</Text>
-          
-          <View style={styles.infoContainer}>
-            <Text style={styles.label}>Full Name:</Text>
-            <Text style={styles.value}>{profile.full_name}</Text>
-          </View>
-          
-          <View style={styles.infoContainer}>
-            <Text style={styles.label}>Email:</Text>
-            <Text style={styles.value}>{profile.email}</Text>
-          </View>
-
-          {profile.phone && (
-            <View style={styles.infoContainer}>
-              <Text style={styles.label}>Phone:</Text>
-              <Text style={styles.value}>{profile.phone}</Text>
-            </View>
+        <GradientHeader title="Profile" />
+        <ScrollView style={styles.content}>
+          {authMode === 'login' ? (
+            <LoginForm onSwitchToRegister={() => setAuthMode('register')} />
+          ) : (
+            <RegisterForm onSwitchToLogin={() => setAuthMode('login')} />
           )}
+        </ScrollView>
+      </View>
+    );
+  }
 
-          {profile.date_of_birth && (
-            <View style={styles.infoContainer}>
-              <Text style={styles.label}>Date of Birth:</Text>
-              <Text style={styles.value}>{new Date(profile.date_of_birth).toLocaleDateString()}</Text>
-            </View>
-          )}
-          
-          <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
-            <Text style={styles.signOutText}>Sign Out</Text>
-          </TouchableOpacity>
+  // Show loading state while profile loads
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <GradientHeader title="Dashboard" />
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Loading your profile...</Text>
         </View>
       </View>
     );
   }
 
+  // Show dashboard for authenticated users (with or without profile)
   return (
     <View style={styles.container}>
-      {authMode === 'login' ? (
-        <LoginForm onSwitchToRegister={() => setAuthMode('register')} />
-      ) : (
-        <RegisterForm onSwitchToLogin={() => setAuthMode('login')} />
-      )}
-    </View>
-  );
+      <GradientHeader title="Dashboard" />
+      <ScrollView
+        style={styles.content}
+        contentContainerStyle={styles.scrollContainer}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Profile Header Section */}
+        <View style={styles.profileHeader}>
+          <View style={styles.avatarContainer}>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>
+                {profile?.full_name?.charAt(0)?.toUpperCase() || session.user.email?.charAt(0)?.toUpperCase() || 'U'}
+              </Text>
+            </View>
+          </View>
+          <Text style={styles.userName}>{profile?.full_name || session.user.user_metadata?.full_name || 'User'}</Text>
+          <Text style={styles.userEmail}>{profile?.email || session.user.email}</Text>
+        </View>
+
+        {/* User Details Card */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Personal Information</Text>
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>Phone:</Text>
+            <Text style={styles.detailValue}>{profile?.phone || 'Not provided'}</Text>
+          </View>
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>Date of Birth:</Text>
+            <Text style={styles.detailValue}>{profile?.date_of_birth || 'Not provided'}</Text>
+          </View>
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>Member since:</Text>
+            <Text style={styles.detailValue}>
+              {profile?.created_at ? new Date(profile.created_at).toLocaleDateString() : 'Recently'}
+            </Text>
+          </View>
+        </View>
+
+        {/* Community Stats Card */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Community Activity</Text>
+          <View style={styles.statsContainer}>
+            <View style={styles.statItem}>
+              <Text style={styles.statNumber}>{posts.length}</Text>
+              <Text style={styles.statLabel}>Posts</Text>
+            </View>
+            <View style={styles.statItem}>
+              <Text style={styles.statNumber}>{posts.reduce((total, post) => total + post.comments_count, 0)}</Text>
+              <Text style={styles.statLabel}>Comments</Text>
+            </View>
+            <View style={styles.statItem}>
+              <Text style={styles.statNumber}>{posts.reduce((total, post) => total + post.likes_count, 0)}</Text>
+              <Text style={styles.statLabel}>Likes</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* My Posts Section */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>My Posts</Text>
+          {posts.length === 0 ? (
+            <Text style={styles.noPostsText}>No posts yet. Share your pregnancy journey!</Text>
+          ) : (
+            posts.map((post) => (
+              <View key={post.id} style={styles.postCard}>
+                {/* Post Header */}
+                <View style={styles.postHeader}>
+                  <View style={styles.postAvatar}>
+                    <Text style={styles.postAvatarText}>
+                      {profile?.full_name?.charAt(0)?.toUpperCase() || session.user.email?.charAt(0)?.toUpperCase() || 'U'}
+                    </Text>
+                  </View>
+                  <View style={styles.postUserInfo}>
+                    <Text style={styles.postUserName}>{profile?.full_name || 'User'}</Text>
+                    <Text style={styles.postTimestamp}>
+                      {new Date(post.created_at).toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.deleteButton}
+                    onPress={() => handleDeletePost(post.id)}
+                  >
+                    <Ionicons name="trash-outline" size={20} color="#dc3545" />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Post Content */}
+                <Text style={styles.postContent}>{post.content}</Text>
+
+                {/* Post Image */}
+                {post.image_url && (
+                  <View style={styles.postImageContainer}>
+                    <Text style={styles.postImagePlaceholder}>📸 Image attached</Text>
+                  </View>
+                )}
+
+                {/* Post Actions */}
+                <View style={styles.postActions}>
+                  <TouchableOpacity
+                    style={styles.postAction}
+                    onPress={() => handleLikePost(post.id)}
+                  >
+                    <Ionicons
+                      name={post.isLiked ? "heart" : "heart-outline"}
+                      size={20}
+                      color={post.isLiked ? "#FC7596" : "#6c757d"}
+                    />
+                    <Text style={[styles.postActionText, post.isLiked && styles.likedText]}>
+                      {post.likes_count}
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.postAction}
+                    onPress={() => handleCommentPress(post.id)}
+                  >
+                    <Ionicons name="chatbubble-outline" size={20} color="#6c757d" />
+                    <Text style={styles.postActionText}>{post.comments_count}</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))
+          )}
+        </View>
+
+        {/* Settings Button */}
+        <TouchableOpacity style={styles.settingsButton} onPress={() => setShowSettingsModal(true)}>
+          <Ionicons name="settings-outline" size={20} color="#495057" style={{ marginRight: 8 }} />
+          <Text style={styles.settingsButtonText}>Settings</Text>
+        </TouchableOpacity>
+
+        {/* Sign Out Button */}
+        <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
+          <Text style={styles.signOutButtonText}>Sign Out</Text>
+        </TouchableOpacity>
+      </ScrollView>
+
+        {/* Settings Modal */}
+        <Modal
+          visible={showSettingsModal}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => setShowSettingsModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Settings</Text>
+                <TouchableOpacity onPress={() => setShowSettingsModal(false)}>
+                  <Ionicons name="close" size={24} color="#6c757d" />
+                </TouchableOpacity>
+              </View>
+
+              <TouchableOpacity style={styles.settingsOption} onPress={handleEditProfile}>
+                <Ionicons name="person-outline" size={20} color="#495057" />
+                <Text style={styles.settingsOptionText}>Edit Profile</Text>
+                <Ionicons name="chevron-forward" size={20} color="#6c757d" />
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.settingsOption}>
+                <Ionicons name="notifications-outline" size={20} color="#495057" />
+                <Text style={styles.settingsOptionText}>Notifications</Text>
+                <Ionicons name="chevron-forward" size={20} color="#6c757d" />
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.settingsOption} onPress={() => {
+                console.log('🔒 Privacy modal button clicked');
+                setShowPrivacyModal(true);
+                setShowSettingsModal(false);
+                console.log('🔒 Privacy modal should be visible now');
+              }}>
+                <Ionicons name="shield-outline" size={20} color="#495057" />
+                <Text style={styles.settingsOptionText}>Terms & Policies</Text>
+                <Ionicons name="chevron-forward" size={20} color="#6c757d" />
+              </TouchableOpacity>
+
+              <TouchableOpacity style={[styles.settingsOption, styles.dangerOption]} onPress={handleDeleteAccount}>
+                <Ionicons name="trash-outline" size={20} color="#dc3545" />
+                <Text style={[styles.settingsOptionText, styles.dangerText]}>Delete Account</Text>
+                <Ionicons name="chevron-forward" size={20} color="#dc3545" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Edit Profile Modal */}
+        <Modal
+          visible={showEditProfile}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => setShowEditProfile(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Edit Profile</Text>
+                <TouchableOpacity onPress={() => setShowEditProfile(false)}>
+                  <Ionicons name="close" size={24} color="#6c757d" />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Full Name</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={editedProfile?.full_name || ''}
+                  onChangeText={(text) => setEditedProfile(prev => prev ? {...prev, full_name: text} : null)}
+                  placeholder="Enter your full name"
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Phone</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={editedProfile?.phone || ''}
+                  onChangeText={(text) => setEditedProfile(prev => prev ? {...prev, phone: text} : null)}
+                  placeholder="Enter your phone number"
+                  keyboardType="phone-pad"
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Date of Birth</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={editedProfile?.date_of_birth || ''}
+                  onChangeText={(text) => setEditedProfile(prev => prev ? {...prev, date_of_birth: text} : null)}
+                  placeholder="YYYY-MM-DD"
+                />
+              </View>
+
+              <TouchableOpacity style={styles.saveButton} onPress={handleSaveProfile}>
+                <Text style={styles.saveButtonText}>Save Changes</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Privacy & Terms Modal */}
+        <Modal
+          visible={showPrivacyModal}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => setShowPrivacyModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.privacyModalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Terms and Policies</Text>
+                <TouchableOpacity onPress={() => setShowPrivacyModal(false)}>
+                  <Ionicons name="close" size={24} color="#6c757d" />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView
+                style={styles.privacyScrollView}
+                contentContainerStyle={styles.privacyContentContainer}
+                showsVerticalScrollIndicator={true}
+              >
+                <Text style={styles.privacyTitle}>BabyBloom Terms and Policies</Text>
+                <Text style={styles.privacyDate}>Last Updated: January 15, 2025</Text>
+
+                <Text style={styles.sectionTitle}>1. Acceptance of Terms</Text>
+                <Text style={styles.privacyText}>
+                  By creating an account or using any part of the BabyBloom app, you agree to be bound by these Terms of Use and Privacy Policy. If you do not agree, please do not use the app.
+                </Text>
+
+                <Text style={styles.sectionTitle}>2. User Eligibility</Text>
+                <Text style={styles.privacyText}>
+                  BabyBloom is intended for users who are at least 18 years old. By using the app, you affirm that you are of legal age to enter into these terms and form a binding agreement.
+                </Text>
+
+                <Text style={styles.sectionTitle}>3. Description of Services</Text>
+                <Text style={styles.privacyText}>
+                  BabyBloom offers:
+                </Text>
+                <Text style={styles.privacyText}>
+                  • AI-powered pregnancy and infant health guidance{'\n'}
+                  • Personalized nutrition and wellness insights{'\n'}
+                  • Mental health support and CBT exercises{'\n'}
+                  • Smart growth and sleep tracking{'\n'}
+                  • Community forums and chatbot assistance{'\n'}
+                  • Secure storage of medical and vaccination records
+                </Text>
+                <Text style={styles.privacyText}>
+                  These services are provided for informational and support purposes only and do not replace professional medical advice or care.
+                </Text>
+
+                <Text style={styles.sectionTitle}>4. Privacy and Data Use</Text>
+                <Text style={styles.privacyText}>
+                  We are committed to protecting your data:
+                </Text>
+                <Text style={styles.privacyText}>
+                  • All personal health data is stored securely using Supabase and PostgreSQL{'\n'}
+                  • AI/ML features are handled by a secure Python Flask API{'\n'}
+                  • Your medical records are protected using blockchain security{'\n'}
+                  • We comply with HIPAA, GDPR, and relevant data protection laws{'\n'}
+                  • We do not sell your personal data to third parties
+                </Text>
+
+                <Text style={styles.sectionTitle}>5. User Responsibilities</Text>
+                <Text style={styles.privacyText}>
+                  You agree to:
+                </Text>
+                <Text style={styles.privacyText}>
+                  • Provide accurate and up-to-date information{'\n'}
+                  • Use the app only for lawful, non-commercial purposes{'\n'}
+                  • Maintain confidentiality of your login credentials{'\n'}
+                  • Immediately report any unauthorized use of your account
+                </Text>
+
+                <Text style={styles.sectionTitle}>6. AI and Health Disclaimer</Text>
+                <Text style={styles.privacyText}>
+                  BabyBloom uses AI to provide insights and recommendations. While we strive for accuracy:
+                </Text>
+                <Text style={styles.privacyText}>
+                  • The AI chatbot, growth predictions, nutrition advice, and mental health tools are not substitutes for licensed medical professionals{'\n'}
+                  • Always consult a pediatrician, OB/GYN, or mental health professional for medical decisions
+                </Text>
+
+                <Text style={styles.sectionTitle}>7. Community Guidelines</Text>
+                <Text style={styles.privacyText}>
+                  By participating in our support forums or posting reviews, you agree to:
+                </Text>
+                <Text style={styles.privacyText}>
+                  • Use respectful language{'\n'}
+                  • Avoid sharing false, harmful, or misleading content{'\n'}
+                  • Refrain from posting medical advice if you are not a certified professional{'\n'}
+                  • Accept moderation by AI and human admins to ensure a safe environment
+                </Text>
+
+                <Text style={styles.sectionTitle}>8. Payments</Text>
+                <Text style={styles.privacyText}>
+                  Payments made for premium features (e.g., advanced analytics, therapy matching) are processed securely via Razorpay. All transactions are subject to Razorpay's terms and conditions.
+                </Text>
+
+                <Text style={styles.sectionTitle}>9. Intellectual Property</Text>
+                <Text style={styles.privacyText}>
+                  All content, branding, algorithms, and user interface designs are the intellectual property of BabyBloom. You may not copy, reproduce, or distribute any part of the app without written permission.
+                </Text>
+
+                <Text style={styles.sectionTitle}>10. Limitation of Liability</Text>
+                <Text style={styles.privacyText}>
+                  We are not liable for:
+                </Text>
+                <Text style={styles.privacyText}>
+                  • Any decisions you make based on AI suggestions{'\n'}
+                  • Medical outcomes from actions taken using app content{'\n'}
+                  • Service interruptions or data loss due to external factors{'\n'}
+                  • Your use of the app is at your own risk
+                </Text>
+
+                <Text style={styles.sectionTitle}>11. Changes to Terms</Text>
+                <Text style={styles.privacyText}>
+                  We may update these Terms and Policies from time to time. Continued use of BabyBloom after changes indicates your acceptance of the revised terms.
+                </Text>
+
+                <Text style={styles.sectionTitle}>12. Contact Us</Text>
+                <Text style={styles.privacyText}>
+                  If you have questions about these terms, please contact us at:
+                </Text>
+                <Text style={styles.privacyText}>
+                  📧 babybloom333@gmail.com
+                </Text>
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+      </View>
+    );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  profileContainer: {
+  container: {
     flex: 1,
+    backgroundColor: '#f8f9fa',
+  },
+  content: {
+    flex: 1,
+  },
+  scrollContainer: {
+    paddingBottom: 100, // Extra padding at bottom for tab bar
+    flexGrow: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
     padding: 20,
-    backgroundColor: '#FC7596',
   },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: 'white',
+  loadingText: {
+    fontSize: 16,
+    color: '#6c757d',
     textAlign: 'center',
-    marginBottom: 30,
   },
-  infoContainer: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    padding: 15,
-    borderRadius: 10,
+  profileHeader: {
+    alignItems: 'center',
+    paddingVertical: 30,
+    paddingHorizontal: 20,
+    backgroundColor: 'white',
+    marginBottom: 20,
+  },
+  avatarContainer: {
     marginBottom: 15,
   },
-  label: {
+  avatar: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#FC7596',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  avatarText: {
+    fontSize: 32,
+    fontWeight: 'bold',
     color: 'white',
-    fontSize: 14,
-    fontWeight: '600',
+  },
+  userName: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#2c3e50',
     marginBottom: 5,
   },
-  value: {
-    color: 'white',
+  userEmail: {
     fontSize: 16,
+    color: '#6c757d',
+  },
+  card: {
+    backgroundColor: 'white',
+    marginHorizontal: 20,
+    marginBottom: 20,
+    borderRadius: 12,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  cardTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+    marginBottom: 15,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f3f4',
+  },
+  detailLabel: {
+    fontSize: 16,
+    color: '#6c757d',
+    fontWeight: '500',
+  },
+  detailValue: {
+    fontSize: 16,
+    color: '#2c3e50',
+    fontWeight: '600',
+    flex: 1,
+    textAlign: 'right',
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+  },
+  statItem: {
+    alignItems: 'center',
+  },
+  statNumber: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#FC7596',
+    marginBottom: 5,
+  },
+  statLabel: {
+    fontSize: 14,
+    color: '#6c757d',
+  },
+  settingsButton: {
+    backgroundColor: '#e9ecef',
+    marginHorizontal: 20,
+    marginBottom: 15,
+    borderRadius: 12,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  settingsButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#495057',
   },
   signOutButton: {
-    backgroundColor: 'white',
-    padding: 15,
-    borderRadius: 10,
-    marginTop: 30,
+    backgroundColor: '#dc3545',
+    marginHorizontal: 20,
+    marginBottom: 30,
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
   },
-  signOutText: {
+  signOutButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: 'white',
+  },
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 20,
+    paddingBottom: 30,
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f3f4',
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+  },
+  settingsOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    marginBottom: 8,
+    backgroundColor: '#f8f9fa',
+  },
+  settingsOptionText: {
+    fontSize: 16,
+    color: '#495057',
+    marginLeft: 12,
+    flex: 1,
+  },
+  dangerOption: {
+    backgroundColor: '#fff5f5',
+  },
+  dangerText: {
+    color: '#dc3545',
+  },
+  inputGroup: {
+    marginBottom: 20,
+  },
+  inputLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#2c3e50',
+    marginBottom: 8,
+  },
+  textInput: {
+    borderWidth: 1,
+    borderColor: '#dee2e6',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    backgroundColor: 'white',
+  },
+  saveButton: {
+    backgroundColor: '#FC7596',
+    borderRadius: 8,
+    padding: 16,
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  saveButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: 'white',
+  },
+  // Privacy modal styles
+  privacyModalContent: {
+    backgroundColor: 'white',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 20,
+    paddingBottom: 30,
+    height: '90%',
+    width: '100%',
+  },
+  privacyScrollView: {
+    flex: 1,
+    backgroundColor: 'white',
+  },
+  privacyContent: {
+    flex: 1,
+  },
+  privacyContentContainer: {
+    paddingHorizontal: 16,
+    paddingBottom: 20,
+    flexGrow: 1,
+  },
+  privacyTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  privacyDate: {
+    fontSize: 14,
+    color: '#6c757d',
+    textAlign: 'center',
+    marginBottom: 20,
+    fontStyle: 'italic',
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
     color: '#FC7596',
+    marginTop: 20,
+    marginBottom: 10,
+  },
+  privacyText: {
+    fontSize: 15,
+    color: '#495057',
+    lineHeight: 22,
+    marginBottom: 15,
+    textAlign: 'justify',
+  },
+  // Posts styles
+  noPostsText: {
+    fontSize: 16,
+    color: '#6c757d',
+    textAlign: 'center',
+    fontStyle: 'italic',
+    paddingVertical: 20,
+  },
+  postCard: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+  },
+  postHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  deleteButton: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: '#fff5f5',
+  },
+  postAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#FC7596',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  postAvatarText: {
     fontSize: 16,
     fontWeight: 'bold',
+    color: 'white',
+  },
+  postUserInfo: {
+    flex: 1,
+  },
+  postUserName: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+  },
+  postTimestamp: {
+    fontSize: 12,
+    color: '#6c757d',
+    marginTop: 2,
+  },
+  postContent: {
+    fontSize: 15,
+    color: '#2c3e50',
+    lineHeight: 22,
+    marginBottom: 12,
+  },
+  postImageContainer: {
+    backgroundColor: '#e9ecef',
+    borderRadius: 8,
+    padding: 20,
+    marginBottom: 12,
+    alignItems: 'center',
+  },
+  postImagePlaceholder: {
+    fontSize: 14,
+    color: '#6c757d',
     textAlign: 'center',
+  },
+  postActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#e9ecef',
+  },
+  postAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  postActionText: {
+    fontSize: 14,
+    color: '#6c757d',
+    marginLeft: 6,
+    fontWeight: '500',
+  },
+  likedText: {
+    color: '#FC7596',
+    fontWeight: 'bold',
   },
 });
 

@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { supabase } from 'lib/supabase';
-import { communityService, Post, Comment } from 'lib/community';
+import { postsService, Post } from 'lib/posts';
 import GradientHeader from '@/components/GradientHeader';
 
 export default function CommunityScreen() {
@@ -12,7 +12,7 @@ export default function CommunityScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showComments, setShowComments] = useState<string | null>(null);
-  const [comments, setComments] = useState<Comment[]>([]);
+  const [comments, setComments] = useState<any[]>([]);
   const [newComment, setNewComment] = useState('');
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
@@ -62,7 +62,7 @@ export default function CommunityScreen() {
 
   const loadPosts = async (userId?: string) => {
     try {
-      const postsData = await communityService.getPosts(userId);
+      const postsData = await postsService.getPosts(userId);
       setPosts(postsData);
       setLoading(false);
       setRefreshing(false);
@@ -79,7 +79,7 @@ export default function CommunityScreen() {
   };
 
   const handleCreatePost = async () => {
-    if (!isAuthenticated) {
+    if (!isAuthenticated || !currentUserId) {
       Alert.alert('Login Required', 'Please log in to create posts and interact with the community.');
       return;
     }
@@ -90,56 +90,47 @@ export default function CommunityScreen() {
     }
 
     try {
-      const result = await communityService.createPost({
-        content: newPost.trim()
-      });
-
-      if (result.success) {
-        Alert.alert('Success', 'Your post has been shared with the community!');
-        setNewPost('');
-        await loadPosts(currentUserId || undefined);
-      } else {
-        Alert.alert('Error', result.error || 'Failed to create post. Please try again.');
-      }
+      await postsService.createPost(currentUserId, newPost.trim());
+      Alert.alert('Success', 'Your post has been shared with the community!');
+      setNewPost('');
+      await loadPosts(currentUserId);
     } catch (error) {
+      console.error('Error creating post:', error);
       Alert.alert('Error', 'Failed to create post. Please try again.');
     }
   };
 
   const handleLike = async (postId: string) => {
-    if (!isAuthenticated) {
+    if (!isAuthenticated || !currentUserId) {
       Alert.alert('Login Required', 'Please log in to like posts and interact with the community.');
       return;
     }
 
     try {
-      const result = await communityService.toggleLike(postId);
-      if (result.success) {
-        // Update the post in the local state
-        setPosts(prevPosts =>
-          prevPosts.map(post =>
-            post.id === postId
-              ? {
-                  ...post,
-                  is_liked: result.isLiked,
-                  likes_count: result.isLiked
-                    ? post.likes_count + 1
-                    : post.likes_count - 1
-                }
-              : post
-          )
-        );
-      } else {
-        Alert.alert('Error', result.error || 'Failed to like post.');
-      }
+      const isLiked = await postsService.toggleLike(postId, currentUserId);
+      // Update the post in the local state
+      setPosts(prevPosts =>
+        prevPosts.map(post =>
+          post.id === postId
+            ? {
+                ...post,
+                isLiked,
+                likes_count: isLiked
+                  ? post.likes_count + 1
+                  : post.likes_count - 1
+              }
+            : post
+        )
+      );
     } catch (error) {
       console.error('Error toggling like:', error);
+      Alert.alert('Error', 'Failed to like post.');
     }
   };
 
   const loadComments = async (postId: string) => {
     try {
-      const commentsData = await communityService.getComments(postId);
+      const commentsData = await postsService.getPostComments(postId);
       setComments(commentsData);
     } catch (error) {
       console.error('Error loading comments:', error);
@@ -147,7 +138,7 @@ export default function CommunityScreen() {
   };
 
   const handleCreateComment = async (postId: string) => {
-    if (!isAuthenticated) {
+    if (!isAuthenticated || !currentUserId) {
       Alert.alert('Login Required', 'Please log in to comment on posts.');
       return;
     }
@@ -155,27 +146,20 @@ export default function CommunityScreen() {
     if (!newComment.trim()) return;
 
     try {
-      const result = await communityService.createComment({
-        post_id: postId,
-        content: newComment.trim()
-      });
-
-      if (result.success) {
-        setNewComment('');
-        await loadComments(postId);
-        // Update comments count in posts
-        setPosts(prevPosts =>
-          prevPosts.map(post =>
-            post.id === postId
-              ? { ...post, comments_count: post.comments_count + 1 }
-              : post
-          )
-        );
-      } else {
-        Alert.alert('Error', result.error || 'Failed to create comment.');
-      }
+      await postsService.addComment(postId, currentUserId, newComment.trim());
+      setNewComment('');
+      await loadComments(postId);
+      // Update comments count in posts
+      setPosts(prevPosts =>
+        prevPosts.map(post =>
+          post.id === postId
+            ? { ...post, comments_count: post.comments_count + 1 }
+            : post
+        )
+      );
     } catch (error) {
       console.error('Error creating comment:', error);
+      Alert.alert('Error', 'Failed to create comment.');
     }
   };
 
@@ -196,12 +180,12 @@ export default function CommunityScreen() {
         <View style={styles.avatarContainer}>
           <View style={styles.avatar}>
             <Text style={styles.avatarText}>
-              {post.user_profile.full_name.charAt(0)}
+              {post.user_profiles?.full_name?.charAt(0) || 'U'}
             </Text>
           </View>
         </View>
         <View style={styles.postInfo}>
-          <Text style={styles.userName}>{post.user_profile.full_name}</Text>
+          <Text style={styles.userName}>{post.user_profiles?.full_name || 'User'}</Text>
           <Text style={styles.postTime}>{formatTimeAgo(post.created_at)}</Text>
         </View>
       </View>
@@ -216,11 +200,11 @@ export default function CommunityScreen() {
           onPress={() => handleLike(post.id)}
         >
           <Ionicons
-            name={post.is_liked ? "heart" : "heart-outline"}
+            name={post.isLiked ? "heart" : "heart-outline"}
             size={20}
-            color={post.is_liked ? "#FC7596" : "#FC7596"}
+            color={post.isLiked ? "#FC7596" : "#FC7596"}
           />
-          <Text style={[styles.actionText, post.is_liked && styles.likedText]}>
+          <Text style={[styles.actionText, post.isLiked && styles.likedText]}>
             {post.likes_count}
           </Text>
         </TouchableOpacity>
@@ -272,11 +256,11 @@ export default function CommunityScreen() {
             <View key={comment.id} style={styles.comment}>
               <View style={styles.commentAvatar}>
                 <Text style={styles.commentAvatarText}>
-                  {comment.user_profile.full_name.charAt(0)}
+                  {comment.user_profiles?.full_name?.charAt(0) || 'U'}
                 </Text>
               </View>
               <View style={styles.commentContent}>
-                <Text style={styles.commentUser}>{comment.user_profile.full_name}</Text>
+                <Text style={styles.commentUser}>{comment.user_profiles?.full_name || 'User'}</Text>
                 <Text style={styles.commentText}>{comment.content}</Text>
                 <Text style={styles.commentTime}>{formatTimeAgo(comment.created_at)}</Text>
               </View>
@@ -296,6 +280,7 @@ export default function CommunityScreen() {
       
       <ScrollView
         style={styles.content}
+        contentContainerStyle={styles.scrollContainer}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -346,10 +331,59 @@ export default function CommunityScreen() {
             <View style={styles.loadingContainer}>
               <Text style={styles.loadingText}>Loading posts...</Text>
             </View>
+          ) : posts.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyIcon}>📝</Text>
+              <Text style={styles.emptyTitle}>No posts yet</Text>
+              <Text style={styles.emptyDescription}>
+                Be the first to share something with the community! Write a post above to get started.
+              </Text>
+            </View>
           ) : (
             posts.map(renderPost)
           )}
         </View>
+
+        {/* Community Guidelines */}
+        <View style={styles.guidelinesCard}>
+          <Text style={styles.guidelinesTitle}>🌸 Community Guidelines</Text>
+          <Text style={styles.guidelinesText}>
+            • Be kind and supportive to fellow mothers{'\n'}
+            • Share your experiences and ask questions{'\n'}
+            • Respect privacy and confidentiality{'\n'}
+            • No medical advice - consult professionals{'\n'}
+            • Keep content pregnancy and parenting related
+          </Text>
+        </View>
+
+        {/* Tips Section */}
+        <View style={styles.tipsSection}>
+          <Text style={styles.tipsTitle}>💡 Community Tips</Text>
+
+          <View style={styles.tipCard}>
+            <Text style={styles.tipTitle}>Share Your Journey</Text>
+            <Text style={styles.tipDescription}>
+              Don't hesitate to share your experiences, both joyful and challenging. Your story can help others!
+            </Text>
+          </View>
+
+          <View style={styles.tipCard}>
+            <Text style={styles.tipTitle}>Ask Questions</Text>
+            <Text style={styles.tipDescription}>
+              No question is too small. Our community is here to support you through every step.
+            </Text>
+          </View>
+
+          <View style={styles.tipCard}>
+            <Text style={styles.tipTitle}>Support Others</Text>
+            <Text style={styles.tipDescription}>
+              A kind word or shared experience can make someone's day. Spread positivity!
+            </Text>
+          </View>
+        </View>
+
+        {/* Bottom spacing for better scrolling */}
+        <View style={styles.bottomSpacing} />
       </ScrollView>
     </View>
   );
@@ -363,6 +397,10 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: 16,
+  },
+  scrollContainer: {
+    paddingBottom: 100, // Extra padding at bottom for tab bar
+    flexGrow: 1,
   },
   createPostCard: {
     backgroundColor: 'white',
@@ -600,5 +638,85 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     textAlign: 'center',
     lineHeight: 24,
+  },
+  emptyContainer: {
+    padding: 40,
+    alignItems: 'center',
+  },
+  emptyIcon: {
+    fontSize: 48,
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#374151',
+    marginBottom: 8,
+  },
+  emptyDescription: {
+    fontSize: 14,
+    color: '#9CA3AF',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  guidelinesCard: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 20,
+    marginTop: 20,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  guidelinesTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+    marginBottom: 12,
+  },
+  guidelinesText: {
+    fontSize: 14,
+    color: '#6c757d',
+    lineHeight: 22,
+  },
+  tipsSection: {
+    marginBottom: 20,
+  },
+  tipsTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+    marginBottom: 15,
+    textAlign: 'center',
+  },
+  tipCard: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    borderLeftWidth: 4,
+    borderLeftColor: '#FC7596',
+  },
+  tipTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+    marginBottom: 6,
+  },
+  tipDescription: {
+    fontSize: 14,
+    color: '#6c757d',
+    lineHeight: 20,
+  },
+  bottomSpacing: {
+    height: 50,
   },
 });

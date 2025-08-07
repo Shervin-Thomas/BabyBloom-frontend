@@ -78,18 +78,31 @@ export default function TabsLayout() {
           ),
         }}
       />
-      <Tabs.Screen 
-        name="profile" 
-        options={{ 
-          title: "Profile",
+      <Tabs.Screen
+        name="bloombot"
+        options={{
+          title: "Bloom Bot",
           tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons 
-              name={focused ? "person" : "person-outline"} 
-              size={size} 
-              color={color} 
+            <Ionicons
+              name={focused ? "chatbubble-ellipses" : "chatbubble-ellipses-outline"}
+              size={size}
+              color={color}
             />
           ),
-        }} 
+        }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: "Profile",
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons
+              name={focused ? "person" : "person-outline"}
+              size={size}
+              color={color}
+            />
+          ),
+        }}
       />
     </Tabs>
   );
