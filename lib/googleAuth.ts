@@ -11,8 +11,7 @@ export const googleAuthService = {
       console.log('🚀 Starting Google sign-in...');
 
       const redirectUri = AuthSession.makeRedirectUri({
-        useProxy: true,
-        preferLocalhost: true,
+        scheme: 'babybloom',
       });
       console.log('📍 Redirect URI:', redirectUri);
 
