@@ -12,7 +12,7 @@ export default function CommunityScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showComments, setShowComments] = useState<string | null>(null);
-  const [comments, setComments] = useState<any[]>([]);
+  const [comments, setComments] = useState<{[key: string]: any[]}>({});
   const [newComment, setNewComment] = useState('');
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
@@ -66,6 +66,23 @@ export default function CommunityScreen() {
       setPosts(postsData);
       setLoading(false);
       setRefreshing(false);
+
+      // Load preview comments for all posts
+      if (postsData.length > 0) {
+        const postIds = postsData.map(post => post.id);
+        const commentsPromises = postIds.map(async (postId) => {
+          const commentsData = await postsService.getPostComments(postId);
+          return { postId, comments: commentsData.slice(0, 2) }; // Only first 2 comments for preview
+        });
+
+        const results = await Promise.all(commentsPromises);
+        const commentsMap: {[key: string]: any[]} = {};
+        results.forEach(({ postId, comments: postComments }) => {
+          commentsMap[postId] = postComments;
+        });
+
+        setComments(commentsMap);
+      }
     } catch (error) {
       console.error('Error loading posts:', error);
       setLoading(false);
@@ -94,6 +111,10 @@ export default function CommunityScreen() {
       Alert.alert('Success', 'Your post has been shared with the community!');
       setNewPost('');
       await loadPosts(currentUserId);
+
+      // Trigger a custom event to notify other tabs about the new post
+      // This will help refresh the Profile tab
+      console.log('📢 Broadcasting new post event');
     } catch (error) {
       console.error('Error creating post:', error);
       Alert.alert('Error', 'Failed to create post. Please try again.');
@@ -107,23 +128,37 @@ export default function CommunityScreen() {
     }
 
     try {
-      const isLiked = await postsService.toggleLike(postId, currentUserId);
-      // Update the post in the local state
+      // Get current post state
+      const currentPost = posts.find(post => post.id === postId);
+      if (!currentPost) return;
+
+      // Optimistically update UI first for better UX
+      const optimisticIsLiked = !currentPost.isLiked;
       setPosts(prevPosts =>
         prevPosts.map(post =>
           post.id === postId
             ? {
                 ...post,
-                isLiked,
-                likes_count: isLiked
+                isLiked: optimisticIsLiked,
+                likes_count: optimisticIsLiked
                   ? post.likes_count + 1
-                  : post.likes_count - 1
+                  : Math.max(0, post.likes_count - 1)
               }
             : post
         )
       );
+
+      // Then call the service (which handles database updates)
+      const actualIsLiked = await postsService.toggleLike(postId, currentUserId);
+
+      // Refresh posts to get the actual database state
+      await loadPosts(currentUserId);
+
+      console.log('✅ Like toggled in Community tab - optimistic:', optimisticIsLiked, 'actual:', actualIsLiked);
     } catch (error) {
       console.error('Error toggling like:', error);
+      // Revert optimistic update by refreshing from database
+      await loadPosts(currentUserId);
       Alert.alert('Error', 'Failed to like post.');
     }
   };
@@ -131,11 +166,16 @@ export default function CommunityScreen() {
   const loadComments = async (postId: string) => {
     try {
       const commentsData = await postsService.getPostComments(postId);
-      setComments(commentsData);
+      setComments(prev => ({
+        ...prev,
+        [postId]: commentsData
+      }));
     } catch (error) {
       console.error('Error loading comments:', error);
     }
   };
+
+
 
   const handleCreateComment = async (postId: string) => {
     if (!isAuthenticated || !currentUserId) {
@@ -146,10 +186,16 @@ export default function CommunityScreen() {
     if (!newComment.trim()) return;
 
     try {
-      await postsService.addComment(postId, currentUserId, newComment.trim());
+      const newCommentData = await postsService.addComment(postId, currentUserId, newComment.trim());
       setNewComment('');
-      await loadComments(postId);
-      // Update comments count in posts
+
+      // Add the new comment to the comments state
+      setComments(prev => ({
+        ...prev,
+        [postId]: [...(prev[postId] || []), newCommentData]
+      }));
+
+      // Update comments count in posts (database trigger will handle the actual count)
       setPosts(prevPosts =>
         prevPosts.map(post =>
           post.id === postId
@@ -157,6 +203,8 @@ export default function CommunityScreen() {
             : post
         )
       );
+
+      console.log('✅ Comment added to UI');
     } catch (error) {
       console.error('Error creating comment:', error);
       Alert.alert('Error', 'Failed to create comment.');
@@ -221,7 +269,9 @@ export default function CommunityScreen() {
           }}
         >
           <Ionicons name="chatbubble-outline" size={20} color="#FC7596" />
-          <Text style={styles.actionText}>{post.comments_count}</Text>
+          <Text style={styles.actionText}>
+            {post.comments_count === 0 ? 'Comment' : post.comments_count}
+          </Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.actionButton}>
@@ -230,7 +280,42 @@ export default function CommunityScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Comments Section */}
+      {/* Comments Preview - Always show first 2 comments */}
+      {comments[post.id] && comments[post.id].length > 0 && (
+        <View style={styles.commentsPreview}>
+          {comments[post.id].slice(0, showComments === post.id ? undefined : 2).map(comment => (
+            <View key={comment.id} style={styles.comment}>
+              <View style={styles.commentAvatar}>
+                <Text style={styles.commentAvatarText}>
+                  {comment.user_profiles?.full_name?.charAt(0) || 'U'}
+                </Text>
+              </View>
+              <View style={styles.commentContent}>
+                <Text style={styles.commentUser}>{comment.user_profiles?.full_name || 'User'}</Text>
+                <Text style={styles.commentText}>{comment.content}</Text>
+                <Text style={styles.commentTime}>{formatTimeAgo(comment.created_at)}</Text>
+              </View>
+            </View>
+          ))}
+
+          {/* Show "View more comments" if there are more than 2 comments and not expanded */}
+          {comments[post.id].length > 2 && showComments !== post.id && (
+            <TouchableOpacity
+              style={styles.viewMoreComments}
+              onPress={() => {
+                setShowComments(post.id);
+                loadComments(post.id); // Load all comments when expanding
+              }}
+            >
+              <Text style={styles.viewMoreText}>
+                View {comments[post.id].length - 2} more comments
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+
+      {/* Expanded Comments Section with Input */}
       {showComments === post.id && (
         <View style={styles.commentsSection}>
           <View style={styles.commentInputContainer}>
@@ -251,21 +336,14 @@ export default function CommunityScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Real comments */}
-          {comments.map(comment => (
-            <View key={comment.id} style={styles.comment}>
-              <View style={styles.commentAvatar}>
-                <Text style={styles.commentAvatarText}>
-                  {comment.user_profiles?.full_name?.charAt(0) || 'U'}
-                </Text>
-              </View>
-              <View style={styles.commentContent}>
-                <Text style={styles.commentUser}>{comment.user_profiles?.full_name || 'User'}</Text>
-                <Text style={styles.commentText}>{comment.content}</Text>
-                <Text style={styles.commentTime}>{formatTimeAgo(comment.created_at)}</Text>
-              </View>
-            </View>
-          ))}
+          {/* Show collapse button */}
+          <TouchableOpacity
+            style={styles.collapseComments}
+            onPress={() => setShowComments(null)}
+          >
+            <Text style={styles.collapseText}>Hide comments</Text>
+            <Ionicons name="chevron-up" size={16} color="#9CA3AF" />
+          </TouchableOpacity>
         </View>
       )}
     </View>
@@ -529,11 +607,20 @@ const styles = StyleSheet.create({
     color: '#FC7596',
     fontWeight: 'bold',
   },
-  commentsSection: {
-    marginTop: 16,
-    paddingTop: 16,
+  commentsPreview: {
+    marginTop: 12,
+    paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: '#F3F4F6',
+  },
+  commentsSection: {
+    marginTop: 8,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+    backgroundColor: '#FAFAFA',
+    borderRadius: 8,
+    padding: 12,
   },
   commentInputContainer: {
     flexDirection: 'row',
@@ -602,6 +689,30 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#9CA3AF',
     marginTop: 4,
+  },
+  viewMoreComments: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+  },
+  viewMoreText: {
+    fontSize: 14,
+    color: '#FC7596',
+    fontWeight: '500',
+  },
+  collapseComments: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    marginTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  collapseText: {
+    fontSize: 14,
+    color: '#9CA3AF',
+    marginRight: 4,
   },
   loadingContainer: {
     padding: 40,

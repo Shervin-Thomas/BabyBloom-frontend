@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
-import { View, StyleSheet, Text, TextInput, TouchableOpacity, Alert, ScrollView, Modal } from 'react-native';
+import { useState, useEffect, useCallback } from 'react';
+import { View, StyleSheet, Text, TextInput, TouchableOpacity, Alert, ScrollView, Modal, RefreshControl } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from 'lib/supabase';
 import { profileService, Profile } from 'lib/profile';
 import { postsService, Post } from 'lib/posts';
@@ -19,6 +20,9 @@ export default function ProfileTab() {
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [editedProfile, setEditedProfile] = useState<Profile | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
+  const [comments, setComments] = useState<{[key: string]: any[]}>({});
+  const [showComments, setShowComments] = useState<string | null>(null);
+  const [newComment, setNewComment] = useState('');
 
   useEffect(() => {
     const loadSession = async () => {
@@ -68,6 +72,20 @@ export default function ProfileTab() {
       listener?.subscription.unsubscribe();
     };
   }, []);
+
+  // Refresh posts when tab becomes active (to catch new posts from Community tab)
+  useFocusEffect(
+    useCallback(() => {
+      const refreshPosts = async () => {
+        if (session?.user?.id) {
+          console.log('🔄 Profile tab focused - refreshing posts');
+          await loadUserPosts(session.user.id);
+        }
+      };
+
+      refreshPosts();
+    }, [session?.user?.id])
+  );
 
   const loadProfile = async (userId: string) => {
     setLoading(true);
@@ -121,6 +139,23 @@ export default function ProfileTab() {
       const userPosts = await postsService.getUserPosts(userId, userId);
       console.log('✅ Posts loaded:', userPosts.length);
       setPosts(userPosts);
+
+      // Load preview comments for all posts
+      if (userPosts.length > 0) {
+        const postIds = userPosts.map(post => post.id);
+        const commentsPromises = postIds.map(async (postId) => {
+          const commentsData = await postsService.getPostComments(postId);
+          return { postId, comments: commentsData.slice(0, 2) }; // Only first 2 comments for preview
+        });
+
+        const results = await Promise.all(commentsPromises);
+        const commentsMap: {[key: string]: any[]} = {};
+        results.forEach(({ postId, comments: postComments }) => {
+          commentsMap[postId] = postComments;
+        });
+
+        setComments(commentsMap);
+      }
 
       // If no posts from database, show sample posts
       if (userPosts.length === 0) {
@@ -235,28 +270,103 @@ export default function ProfileTab() {
     if (!session?.user) return;
 
     try {
-      const isLiked = await postsService.toggleLike(postId, session.user.id);
+      // Get current post state
+      const currentPost = posts.find(post => post.id === postId);
+      if (!currentPost) return;
+
+      // Optimistically update UI first for better UX
+      const optimisticIsLiked = !currentPost.isLiked;
       setPosts(prevPosts =>
         prevPosts.map(post =>
           post.id === postId
             ? {
                 ...post,
-                isLiked,
-                likes_count: isLiked ? post.likes_count + 1 : post.likes_count - 1
+                isLiked: optimisticIsLiked,
+                likes_count: optimisticIsLiked
+                  ? post.likes_count + 1
+                  : Math.max(0, post.likes_count - 1)
               }
             : post
         )
       );
+
+      // Then call the service (which handles database updates)
+      const actualIsLiked = await postsService.toggleLike(postId, session.user.id);
+
+      // Refresh posts to get the actual database state
+      await loadUserPosts(session.user.id);
+
+      console.log('✅ Like toggled in Profile tab - optimistic:', optimisticIsLiked, 'actual:', actualIsLiked);
     } catch (error) {
       console.error('Error toggling like:', error);
+      // Revert optimistic update by refreshing from database
+      await loadUserPosts(session.user.id);
       Alert.alert('Error', 'Failed to update like');
     }
   };
 
+  const loadComments = async (postId: string) => {
+    try {
+      const commentsData = await postsService.getPostComments(postId);
+      setComments(prev => ({
+        ...prev,
+        [postId]: commentsData
+      }));
+    } catch (error) {
+      console.error('Error loading comments:', error);
+    }
+  };
+
+  const handleCreateComment = async (postId: string) => {
+    if (!session?.user?.id) return;
+
+    if (!newComment.trim()) return;
+
+    try {
+      const newCommentData = await postsService.addComment(postId, session.user.id, newComment.trim());
+      setNewComment('');
+
+      // Add the new comment to the comments state
+      setComments(prev => ({
+        ...prev,
+        [postId]: [...(prev[postId] || []), newCommentData]
+      }));
+
+      // Update comments count in posts (database trigger will handle the actual count)
+      setPosts(prevPosts =>
+        prevPosts.map(post =>
+          post.id === postId
+            ? { ...post, comments_count: post.comments_count + 1 }
+            : post
+        )
+      );
+
+      console.log('✅ Comment added to UI');
+    } catch (error) {
+      console.error('Error creating comment:', error);
+      Alert.alert('Error', 'Failed to create comment.');
+    }
+  };
+
   const handleCommentPress = (postId: string) => {
-    Alert.alert('Comments', `View comments for post ${postId}`, [
-      { text: 'OK', style: 'default' }
-    ]);
+    if (showComments === postId) {
+      setShowComments(null);
+    } else {
+      setShowComments(postId);
+      loadComments(postId);
+    }
+  };
+
+  const formatTimeAgo = (dateString: string) => {
+    const now = new Date();
+    const date = new Date(dateString);
+    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+
+    if (diffInSeconds < 60) return 'just now';
+    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
+    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
+    if (diffInSeconds < 2592000) return `${Math.floor(diffInSeconds / 86400)}d ago`;
+    return date.toLocaleDateString();
   };
 
   const handleDeletePost = async (postId: string) => {
@@ -440,6 +550,71 @@ export default function ProfileTab() {
                     <Text style={styles.postActionText}>{post.comments_count}</Text>
                   </TouchableOpacity>
                 </View>
+
+                {/* Comments Preview - Always show first 2 comments */}
+                {comments[post.id] && comments[post.id].length > 0 && (
+                  <View style={styles.commentsPreview}>
+                    {comments[post.id].slice(0, showComments === post.id ? undefined : 2).map(comment => (
+                      <View key={comment.id} style={styles.comment}>
+                        <View style={styles.commentAvatar}>
+                          <Text style={styles.commentAvatarText}>
+                            {comment.user_profiles?.full_name?.charAt(0) || 'U'}
+                          </Text>
+                        </View>
+                        <View style={styles.commentContent}>
+                          <Text style={styles.commentUser}>{comment.user_profiles?.full_name || 'User'}</Text>
+                          <Text style={styles.commentText}>{comment.content}</Text>
+                          <Text style={styles.commentTime}>{formatTimeAgo(comment.created_at)}</Text>
+                        </View>
+                      </View>
+                    ))}
+
+                    {/* Show "View more comments" if there are more than 2 comments and not expanded */}
+                    {comments[post.id].length > 2 && showComments !== post.id && (
+                      <TouchableOpacity
+                        style={styles.viewMoreComments}
+                        onPress={() => {
+                          setShowComments(post.id);
+                          loadComments(post.id); // Load all comments when expanding
+                        }}
+                      >
+                        <Text style={styles.viewMoreText}>
+                          View {comments[post.id].length - 2} more comments
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                )}
+
+                {/* Expanded Comments Section with Input */}
+                {showComments === post.id && session?.user && (
+                  <View style={styles.commentsSection}>
+                    <View style={styles.commentInputContainer}>
+                      <TextInput
+                        style={styles.commentInput}
+                        placeholder="Write a comment..."
+                        value={newComment}
+                        onChangeText={setNewComment}
+                        multiline
+                      />
+                      <TouchableOpacity
+                        style={styles.commentButton}
+                        onPress={() => handleCreateComment(post.id)}
+                      >
+                        <Ionicons name="send" size={16} color="#FC7596" />
+                      </TouchableOpacity>
+                    </View>
+
+                    {/* Show collapse button */}
+                    <TouchableOpacity
+                      style={styles.collapseComments}
+                      onPress={() => setShowComments(null)}
+                    >
+                      <Text style={styles.collapseText}>Hide comments</Text>
+                      <Ionicons name="chevron-up" size={16} color="#9CA3AF" />
+                    </TouchableOpacity>
+                  </View>
+                )}
               </View>
             ))
           )}
@@ -1058,6 +1233,97 @@ const styles = StyleSheet.create({
   likedText: {
     color: '#FC7596',
     fontWeight: 'bold',
+  },
+  // Comments styles
+  commentsPreview: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#e9ecef',
+  },
+  comment: {
+    flexDirection: 'row',
+    marginBottom: 8,
+    paddingHorizontal: 4,
+  },
+  commentAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#FC7596',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8,
+  },
+  commentAvatarText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: 'white',
+  },
+  commentContent: {
+    flex: 1,
+  },
+  commentUser: {
+    fontSize: 13,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+    marginBottom: 2,
+  },
+  commentText: {
+    fontSize: 13,
+    color: '#495057',
+    lineHeight: 18,
+    marginBottom: 2,
+  },
+  commentTime: {
+    fontSize: 11,
+    color: '#9CA3AF',
+  },
+  viewMoreComments: {
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+  },
+  viewMoreText: {
+    fontSize: 13,
+    color: '#FC7596',
+    fontWeight: '500',
+  },
+  commentsSection: {
+    marginTop: 8,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#e9ecef',
+  },
+  commentInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    backgroundColor: '#f8f9fa',
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 8,
+  },
+  commentInput: {
+    flex: 1,
+    fontSize: 14,
+    color: '#2c3e50',
+    maxHeight: 80,
+    paddingVertical: 4,
+  },
+  commentButton: {
+    marginLeft: 8,
+    padding: 6,
+  },
+  collapseComments: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+  },
+  collapseText: {
+    fontSize: 13,
+    color: '#9CA3AF',
+    marginRight: 4,
   },
 });
 

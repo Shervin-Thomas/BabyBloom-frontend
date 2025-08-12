@@ -55,11 +55,36 @@ export const postsService = {
 
       if (!posts) return [];
 
-      // Return posts with basic structure
+      // Fetch user profiles for all posts
+      const userIds = [...new Set(posts.map(post => post.user_id))];
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, full_name, email')
+        .in('id', userIds);
+
+      // Create a map of user profiles
+      const profileMap = new Map();
+      profiles?.forEach(profile => {
+        profileMap.set(profile.id, profile);
+      });
+
+      // Check which posts the current user has liked (if user is provided)
+      let likedPostIds = new Set();
+      if (currentUserId) {
+        const { data: likes } = await supabase
+          .from('likes')
+          .select('post_id')
+          .eq('user_id', currentUserId)
+          .in('post_id', posts.map(post => post.id));
+
+        likedPostIds = new Set(likes?.map(like => like.post_id) || []);
+      }
+
+      // Return posts with user profile data and like status
       return posts.map(post => ({
         ...post,
-        isLiked: false,
-        user_profiles: { full_name: 'User', email: '' }
+        isLiked: likedPostIds.has(post.id),
+        user_profiles: profileMap.get(post.user_id) || { full_name: 'User', email: '' }
       }));
     } catch (error) {
       console.error('❌ NEW POSTS SERVICE - Error in getPosts:', error);
@@ -90,11 +115,30 @@ export const postsService = {
         return [];
       }
 
-      // Return posts with basic structure
+      // Fetch user profile for this specific user
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('id, full_name, email')
+        .eq('id', userId)
+        .single();
+
+      // Check which posts the current user has liked (if currentUserId is provided)
+      let likedPostIds = new Set();
+      if (currentUserId) {
+        const { data: likes } = await supabase
+          .from('likes')
+          .select('post_id')
+          .eq('user_id', currentUserId)
+          .in('post_id', posts.map(post => post.id));
+
+        likedPostIds = new Set(likes?.map(like => like.post_id) || []);
+      }
+
+      // Return posts with user profile data and like status
       return posts.map(post => ({
         ...post,
-        isLiked: false,
-        user_profiles: { full_name: 'User', email: '' }
+        isLiked: likedPostIds.has(post.id),
+        user_profiles: profile || { full_name: 'User', email: '' }
       }));
     } catch (error) {
       console.error('❌ NEW POSTS SERVICE - Error in getUserPosts:', error);
@@ -126,10 +170,17 @@ export const postsService = {
 
       console.log('✅ Post created successfully');
 
+      // Fetch user profile for the created post
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('id, full_name, email')
+        .eq('id', userId)
+        .single();
+
       return {
         ...data,
         isLiked: false,
-        user_profiles: { full_name: 'User', email: '' }
+        user_profiles: profile || { full_name: 'User', email: '' }
       };
     } catch (error) {
       console.error('❌ Error creating post:', error);
@@ -170,14 +221,65 @@ export const postsService = {
   // Toggle like on a post
   async toggleLike(postId: string, userId: string) {
     try {
-      // For now, just return a random like status since likes table might not exist
-      // This is a temporary solution until you create the likes table
-      const isLiked = Math.random() > 0.5;
-      console.log('Toggle like called - returning random status:', isLiked);
+      console.log('🔄 Toggling like for post:', postId, 'user:', userId);
+
+      // Check if user has already liked this post
+      const { data: existingLike, error: checkError } = await supabase
+        .from('likes')
+        .select('id')
+        .eq('post_id', postId)
+        .eq('user_id', userId)
+        .single();
+
+      if (checkError && checkError.code !== 'PGRST116') {
+        // PGRST116 is "not found" error, which is expected if no like exists
+        console.error('❌ Error checking existing like:', checkError);
+        throw checkError;
+      }
+
+      let isLiked = false;
+
+      if (existingLike) {
+        // User has liked this post, so unlike it
+        const { error: deleteError } = await supabase
+          .from('likes')
+          .delete()
+          .eq('post_id', postId)
+          .eq('user_id', userId);
+
+        if (deleteError) {
+          console.error('❌ Error removing like:', deleteError);
+          throw deleteError;
+        }
+
+        // Likes count will be automatically decremented by database trigger
+
+        isLiked = false;
+        console.log('✅ Post unliked successfully');
+      } else {
+        // User hasn't liked this post, so like it
+        const { error: insertError } = await supabase
+          .from('likes')
+          .insert({
+            post_id: postId,
+            user_id: userId
+          });
+
+        if (insertError) {
+          console.error('❌ Error adding like:', insertError);
+          throw insertError;
+        }
+
+        // Likes count will be automatically incremented by database trigger
+
+        isLiked = true;
+        console.log('✅ Post liked successfully');
+      }
+
       return isLiked;
     } catch (error) {
-      console.error('Error toggling like:', error);
-      // Return false as fallback
+      console.error('❌ Error toggling like:', error);
+      // Return false as fallback to prevent UI issues
       return false;
     }
   },
@@ -185,11 +287,70 @@ export const postsService = {
   // Get comments for a post
   async getPostComments(postId: string) {
     try {
-      // Return empty array for now since comments table might not exist
-      console.log('Getting comments for post:', postId);
-      return [];
+      console.log('🔍 Fetching comments for post:', postId);
+
+      // Simple query - just get comments first
+      const { data: comments, error } = await supabase
+        .from('comments')
+        .select('*')
+        .eq('post_id', postId)
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        console.error('❌ Error fetching comments:', error);
+        return [];
+      }
+
+      console.log('📝 Raw comments from database:', comments?.length || 0, 'comments');
+
+      if (!comments || comments.length === 0) {
+        console.log('✅ No comments found for post');
+        return [];
+      }
+
+      // Get user profiles separately for all comment authors
+      const userIds = [...new Set(comments.map(comment => comment.user_id))];
+      let profiles: any[] = [];
+
+      if (userIds.length > 0) {
+        const { data: profilesData, error: profilesError } = await supabase
+          .from('profiles')
+          .select('id, full_name, email')
+          .in('id', userIds);
+
+        if (profilesError) {
+          console.error('❌ Error fetching comment user profiles:', profilesError);
+          // Continue without profiles if they fail
+          profiles = [];
+        } else {
+          profiles = profilesData || [];
+        }
+      }
+
+      // Create a map of user profiles
+      const profileMap = new Map();
+      profiles.forEach(profile => {
+        profileMap.set(profile.id, profile);
+      });
+
+      // Transform the data to match expected format
+      const transformedComments = comments.map((comment: any) => ({
+        id: comment.id,
+        post_id: postId,
+        user_id: comment.user_id,
+        content: comment.content,
+        created_at: comment.created_at,
+        updated_at: comment.updated_at,
+        user_profiles: {
+          full_name: profileMap.get(comment.user_id)?.full_name || 'User',
+          email: profileMap.get(comment.user_id)?.email || ''
+        }
+      }));
+
+      console.log('✅ Comments fetched successfully:', transformedComments.length, 'comments');
+      return transformedComments;
     } catch (error) {
-      console.error('Error fetching comments:', error);
+      console.error('❌ Error in getPostComments:', error);
       return [];
     }
   },
@@ -197,18 +358,76 @@ export const postsService = {
   // Add a comment to a post
   async addComment(postId: string, userId: string, content: string) {
     try {
-      // For now, just log the comment since table might not exist
-      console.log('Adding comment:', { postId, userId, content });
-      return {
-        id: 'temp-' + Date.now(),
+      console.log('🔄 Adding comment to post:', postId, 'by user:', userId);
+
+      // Insert the comment
+      const { data: comment, error: insertError } = await supabase
+        .from('comments')
+        .insert({
+          post_id: postId,
+          user_id: userId,
+          content: content.trim()
+        })
+        .select('id, content, created_at, updated_at, user_id')
+        .single();
+
+      if (insertError) {
+        console.error('❌ Error inserting comment:', insertError);
+        throw insertError;
+      }
+
+      // Get user profile for the comment author
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('id, full_name, email')
+        .eq('id', userId)
+        .single();
+
+      if (profileError) {
+        console.error('❌ Error fetching comment author profile:', profileError);
+      }
+
+      // Transform the data to match expected format
+      const transformedComment = {
+        id: comment.id,
         post_id: postId,
-        user_id: userId,
-        content,
-        created_at: new Date().toISOString(),
-        user_profiles: { full_name: 'User', email: '' }
+        user_id: comment.user_id,
+        content: comment.content,
+        created_at: comment.created_at,
+        updated_at: comment.updated_at,
+        user_profiles: {
+          full_name: profile?.full_name || 'User',
+          email: profile?.email || ''
+        }
       };
+
+      console.log('✅ Comment added successfully');
+      return transformedComment;
     } catch (error) {
-      console.error('Error adding comment:', error);
+      console.error('❌ Error adding comment:', error);
+      throw error;
+    }
+  },
+
+  // Delete a comment
+  async deleteComment(commentId: string, userId: string) {
+    try {
+      console.log('🔄 Deleting comment:', commentId, 'by user:', userId);
+
+      const { error } = await supabase
+        .from('comments')
+        .delete()
+        .eq('id', commentId)
+        .eq('user_id', userId); // Ensure user can only delete their own comments
+
+      if (error) {
+        console.error('❌ Error deleting comment:', error);
+        throw error;
+      }
+
+      console.log('✅ Comment deleted successfully');
+    } catch (error) {
+      console.error('❌ Error deleting comment:', error);
       throw error;
     }
   }
