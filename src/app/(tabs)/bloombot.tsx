@@ -2,13 +2,20 @@ import { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import GradientHeader from '@/components/GradientHeader';
-import { rasaService } from '@/lib/rasa';
+import { openRouterService } from 'lib/openRouter'; // Import OpenRouter service
 
 interface Message {
   id: string;
   text: string;
   isBot: boolean;
   timestamp: Date;
+}
+
+// Define the OpenRouterMessage interface directly in this file for simplicity,
+// or import it if you prefer to keep it in openRouter.ts
+interface OpenRouterMessage {
+  role: 'user' | 'assistant';
+  content: string;
 }
 
 export default function BloomBotTab() {
@@ -24,18 +31,11 @@ export default function BloomBotTab() {
   useEffect(() => {
     const welcomeMessage: Message = {
       id: '1',
-      text: "Hi there! 👋 I'm Bloom Bot, powered by Rasa AI! I'm your intelligent assistant here to help with health, pregnancy, lifestyle, and any questions you have. I can have natural conversations and learn from our interactions. How can I help you today? 🤖✨",
+      text: "Hi there! 👋 I'm Bloom Bot, powered by OpenRouter AI! I'm your intelligent assistant here to help with health, pregnancy, lifestyle, and any questions you have. I can have natural conversations and learn from our interactions. How can I help you today? 🤖✨",
       isBot: true,
       timestamp: new Date(),
     };
     setMessages([welcomeMessage]);
-
-    // Check Rasa connection on mount
-    rasaService.checkRasaConnection().then(isConnected => {
-      if (!isConnected) {
-        console.log('⚠️ Rasa server not available, using fallback responses');
-      }
-    });
   }, []);
 
   // Auto-scroll to bottom when new messages are added
@@ -68,18 +68,22 @@ export default function BloomBotTab() {
   }, [isTyping]);
 
   const generateBotResponse = async (userMessage: string): Promise<string> => {
-    console.log('🤖 Generating Rasa AI response for:', userMessage);
+    console.log('🤖 Generating OpenRouter AI response for:', userMessage);
 
     try {
-      // Use Rasa AI to generate response
-      const response = await rasaService.sendMessage(userMessage);
-      console.log('✅ Rasa AI response generated successfully');
+      // Map current messages to OpenRouterMessage format for history
+      const history: OpenRouterMessage[] = messages.map(msg => ({
+        role: msg.isBot ? 'assistant' : 'user',
+        content: msg.text,
+      }));
+
+      // Use OpenRouter AI to generate response
+      const response = await openRouterService.sendMessage(userMessage, history);
+      console.log('✅ OpenRouter AI response generated successfully');
       return response;
     } catch (error) {
-      console.error('❌ Error generating Rasa AI response:', error);
-
-      // Fallback response if Rasa fails
-      return "I'm having a little trouble with my AI brain right now 🤖 But I'm still here to help! Could you try asking me again? I love chatting about all kinds of topics - from health and pregnancy to lifestyle and general advice! ✨";
+      console.error('❌ Error generating OpenRouter AI response:', error);
+      return "I'm having a little trouble connecting to my AI brain right now 🤖 Please make sure your OpenRouter API key is correctly set and try again! If the issue persists, try restarting the app. ✨";
     }
   };
 
@@ -100,7 +104,7 @@ export default function BloomBotTab() {
     setIsTyping(true);
     console.log('⏳ Bot is typing...');
 
-    // Generate Rasa AI response
+    // Generate OpenRouter AI response
     try {
       const responseText = await generateBotResponse(userMessage.text);
       console.log('🤖 Bot response generated:', responseText);
@@ -121,7 +125,7 @@ export default function BloomBotTab() {
       // Fallback response if everything fails
       const errorResponse: Message = {
         id: (Date.now() + 1).toString(),
-        text: "Oops! I'm having some technical difficulties 🤖 Please try again in a moment. I'm here to help with any questions you have!",
+        text: "Oops! I'm having some technical difficulties with the AI 🤖 Please try again in a moment or check your API key. I'm here to help with any questions you have!",
         isBot: true,
         timestamp: new Date(),
       };
