@@ -72,6 +72,7 @@ function RootLayoutNav() {
             <Stack.Screen name="register" />
           </>
         )}
+        <Stack.Screen name="features/nutrition" options={{ headerShown: false }} />
       </Stack>
     </ThemeProvider>
   );
