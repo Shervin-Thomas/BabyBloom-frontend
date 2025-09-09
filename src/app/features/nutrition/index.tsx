@@ -82,10 +82,17 @@ export default function NutritionScreen() {
       {!isAuthenticated && (
         <View style={styles.loginPromptContainer}>
           <Ionicons name="lock-closed" size={50} color="#FC7596" style={styles.lockIcon} />
-          <Text style={styles.loginPromptTitle}>Access Restricted</Text>
+          <Text style={styles.loginPromptTitle}>Login Required</Text>
           <Text style={styles.loginPromptText}>
-            Please log in to access your personalized nutrition features.
+            Login to continue with Nutrition
           </Text>
+          <TouchableOpacity
+            style={styles.backToHomeButton}
+            onPress={() => router.push('/')}
+          >
+            <Ionicons name="arrow-back" size={18} color="#6B7280" style={{ marginRight: 10 }} />
+            <Text style={styles.backToHomeButtonText}>Back to Home</Text>
+          </TouchableOpacity>
         </View>
       )}
       <View style={[styles.featureGridWrapper, !isAuthenticated && styles.disabledFeatureGrid]}>
@@ -207,5 +214,24 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     textAlign: 'center',
     lineHeight: 24,
+  },
+  backToHomeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E5E7EB',
+    paddingVertical: 12,
+    paddingHorizontal: 25,
+    borderRadius: 30,
+    marginTop: 15,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  backToHomeButtonText: {
+    color: '#6B7280',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });

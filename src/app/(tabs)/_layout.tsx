@@ -1,11 +1,41 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Platform } from 'react-native';
+import { Platform, Text, View, StyleSheet } from 'react-native';
 import { CartIcon } from './shop';
+import { useEffect, useState, useCallback } from 'react';
+import { supabase } from 'lib/supabase';
+import { useFocusEffect } from '@react-navigation/native';
 
 export default function TabsLayout() {
   // This would come from your cart state/context in the future
   const cartCount = 3; // Mock cart count for demonstration
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setIsAuthenticated(!!session);
+      setLoading(false);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsAuthenticated(!!session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!loading && !isAuthenticated) {
+        // router.push('/auth/login?message=login_to_continue'); // This line is removed
+      }
+    }, [loading, isAuthenticated]) // router is removed from dependencies
+  );
+
+  if (loading) {
+    return <Text>Loading...</Text>; // Or a proper splash screen
+  }
 
   return (
     <Tabs
