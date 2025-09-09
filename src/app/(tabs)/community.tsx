@@ -273,11 +273,6 @@ export default function CommunityScreen() {
             {post.comments_count === 0 ? 'Comment' : post.comments_count}
           </Text>
         </TouchableOpacity>
-
-        <TouchableOpacity style={styles.actionButton}>
-          <Ionicons name="share-outline" size={20} color="#FC7596" />
-          <Text style={styles.actionText}>Share</Text>
-        </TouchableOpacity>
       </View>
 
       {/* Comments Preview - Always show first 2 comments */}

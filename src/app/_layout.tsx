@@ -8,7 +8,7 @@ import 'react-native-reanimated';
 
 import { useColorScheme } from '@/components/useColorScheme';
 import { supabase } from 'lib/supabase';
-import CustomSplashScreen from '@/components/SplashScreen';
+import CustomSplashScreen from '../components/SplashScreen';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -72,7 +72,6 @@ function RootLayoutNav() {
             <Stack.Screen name="register" />
           </>
         )}
-        <Stack.Screen name="features/nutrition" options={{ headerShown: false }} />
       </Stack>
     </ThemeProvider>
   );
