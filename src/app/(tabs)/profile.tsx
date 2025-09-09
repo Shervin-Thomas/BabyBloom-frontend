@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { View, StyleSheet, Text, TextInput, TouchableOpacity, Alert, ScrollView, Modal, RefreshControl } from 'react-native';
+import { View, StyleSheet, Text, TextInput, TouchableOpacity, Alert, ScrollView, Modal, RefreshControl, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from 'lib/supabase';
@@ -9,6 +9,45 @@ import { Session } from '@supabase/supabase-js';
 import LoginForm from '@components/login';
 import RegisterForm from '@components/register';
 import GradientHeader from '@/components/GradientHeader';
+
+interface MealItem {
+  day: string;
+  meal: string;
+  item: string;
+}
+
+interface DietPlanContent {
+  [key: string]: MealItem[];
+}
+
+interface UserDietPlan {
+  id: string;
+  user_id: string;
+  trimester: number;
+  preferences: string[];
+  allergies: string[];
+  diet_plan_content: DietPlanContent;
+  created_at: string;
+}
+
+interface UserNutritionLog {
+  id: string;
+  user_id: string;
+  log_date: string;
+  symptoms: string[] | null;
+  custom_symptom: string | null;
+  meal_input: string | null;
+  symptom_results: {
+    deficiencies: string[] | null;
+    recommendations: string;
+  } | null;
+  diet_results: {
+    deficiencies: string[] | null;
+    recommendations: string;
+  } | null;
+  daily_nutrient_intake: { [key: string]: string } | null;
+  created_at: string;
+}
 
 export default function ProfileTab() {
   const [session, setSession] = useState<Session | null>(null);
@@ -23,6 +62,12 @@ export default function ProfileTab() {
   const [comments, setComments] = useState<{[key: string]: any[]}>({});
   const [showComments, setShowComments] = useState<string | null>(null);
   const [newComment, setNewComment] = useState('');
+  const [dietPlans, setDietPlans] = useState<UserDietPlan[]>([]);
+  const [loadingDietPlans, setLoadingDietPlans] = useState(false);
+  const [expandedDietPlanId, setExpandedDietPlanId] = useState<string | null>(null);
+  const [nutritionLogs, setNutritionLogs] = useState<UserNutritionLog[]>([]);
+  const [loadingNutritionLogs, setLoadingNutritionLogs] = useState(false);
+  const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
 
   useEffect(() => {
     const loadSession = async () => {
@@ -33,6 +78,8 @@ export default function ProfileTab() {
         setLoading(true);
         await loadProfile(session.user.id);
         await loadUserPosts(session.user.id);
+        await loadUserDietPlans(session.user.id);
+        await loadUserNutritionLogs(session.user.id);
         setLoading(false);
       } else {
         setLoading(false);
@@ -53,16 +100,22 @@ export default function ProfileTab() {
           setLoading(true);
           await loadProfile(session.user.id);
           await loadUserPosts(session.user.id);
+          await loadUserDietPlans(session.user.id);
+          await loadUserNutritionLogs(session.user.id);
           setLoading(false);
         } else {
           setProfile(null);
           setPosts([]);
+          setDietPlans([]);
+          setNutritionLogs([]);
           setAuthMode('login');
           setLoading(false);
         }
       } else {
         setProfile(null);
         setPosts([]);
+        setDietPlans([]);
+        setNutritionLogs([]);
         setAuthMode('login');
         setLoading(false);
       }
@@ -80,6 +133,8 @@ export default function ProfileTab() {
         if (session?.user?.id) {
           console.log('🔄 Profile tab focused - refreshing posts');
           await loadUserPosts(session.user.id);
+          await loadUserDietPlans(session.user.id); // Also refresh diet plans
+          await loadUserNutritionLogs(session.user.id); // Also refresh nutrition logs
         }
       };
 
@@ -206,6 +261,58 @@ export default function ProfileTab() {
         }
       ]);
     }
+  };
+
+  const loadUserDietPlans = async (userId: string) => {
+    setLoadingDietPlans(true);
+    try {
+      const { data, error } = await supabase
+        .from('user_diet_plans')
+        .select('*')
+        .eq('user_id', userId)
+        .order('trimester', { ascending: true });
+
+      if (error) {
+        console.error('Error fetching user diet plans:', error);
+        Alert.alert('Error', 'Failed to load diet plans.');
+      } else {
+        setDietPlans(data || []);
+      }
+    } catch (error) {
+      console.error('Unexpected error loading diet plans:', error);
+      Alert.alert('Error', 'An unexpected error occurred while loading diet plans.');
+    }
+    setLoadingDietPlans(false);
+  };
+
+  const toggleDietPlanExpansion = (planId: string) => {
+    setExpandedDietPlanId(prevId => (prevId === planId ? null : planId));
+  };
+
+  const loadUserNutritionLogs = async (userId: string) => {
+    setLoadingNutritionLogs(true);
+    try {
+      const { data, error } = await supabase
+        .from('user_nutrition_logs')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching user nutrition logs:', error);
+        Alert.alert('Error', 'Failed to load nutrition logs.');
+      } else {
+        setNutritionLogs(data || []);
+      }
+    } catch (error) {
+      console.error('Unexpected error loading nutrition logs:', error);
+      Alert.alert('Error', 'An unexpected error occurred while loading nutrition logs.');
+    }
+    setLoadingNutritionLogs(false);
+  };
+
+  const toggleLogExpansion = (logId: string) => {
+    setExpandedLogId(prevId => (prevId === logId ? null : logId));
   };
 
   const handleSignOut = async () => {
@@ -430,6 +537,21 @@ export default function ProfileTab() {
         style={styles.content}
         contentContainerStyle={styles.scrollContainer}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={loading || loadingDietPlans || loadingNutritionLogs} // Add nutrition logs loading to refresh state
+            onRefresh={async () => {
+              if (session?.user?.id) {
+                await loadProfile(session.user.id);
+                await loadUserPosts(session.user.id);
+                await loadUserDietPlans(session.user.id);
+                await loadUserNutritionLogs(session.user.id);
+              }
+            }}
+            colors={['#FC7596']}
+            tintColor="#FC7596"
+          />
+        }
       >
         {/* Profile Header Section */}
         <View style={styles.profileHeader}>
@@ -617,6 +739,115 @@ export default function ProfileTab() {
                 )}
               </View>
             ))
+          )}
+        </View>
+
+        {/* My Diet Plans Section */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>My Diet Plans</Text>
+          {loadingDietPlans ? (
+            <ActivityIndicator size="small" color="#FC7596" />
+          ) : dietPlans.length === 0 ? (
+            <Text style={styles.noDietPlansText}>No diet plans generated yet. Go to Nutrition > Diet Planner to create one!</Text>
+          ) : (
+            dietPlans.map(plan => {
+              const isExpanded = expandedDietPlanId === plan.id;
+              return (
+                <TouchableOpacity key={plan.id} style={styles.dietPlanCard} onPress={() => toggleDietPlanExpansion(plan.id)}>
+                  <View style={styles.dietPlanHeader}>
+                    <Text style={styles.dietPlanCardTitle}>Trimester {plan.trimester} Diet Plan</Text>
+                    <Ionicons
+                      name={isExpanded ? "chevron-up-outline" : "chevron-down-outline"}
+                      size={20}
+                      color="#6c757d"
+                    />
+                  </View>
+                  {isExpanded && (
+                    <View>
+                      {plan.preferences && plan.preferences.length > 0 && (
+                        <Text style={styles.dietPlanDetail}>Preferences: {plan.preferences.join(', ')}</Text>
+                      )}
+                      {plan.allergies && plan.allergies.length > 0 && (
+                        <Text style={styles.dietPlanDetail}>Allergies: {plan.allergies.join(', ')}</Text>
+                      )}
+                      <Text style={styles.dietPlanDetail}>Generated on: {new Date(plan.created_at).toLocaleDateString()}</Text>
+                      <View style={styles.mealsContainer}>
+                        {Object.entries(plan.diet_plan_content).map(([day, meals]: [string, MealItem[]]) => (
+                          <View key={day} style={styles.mealDayContainer}>
+                            <Text style={styles.mealDayTitle}>{day}</Text>
+                            {meals.map((meal, index) => (
+                              <Text key={index} style={styles.mealText}>• {meal.meal}: {meal.item}</Text>
+                            ))}
+                          </View>
+                        ))}
+                      </View>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
+            })
+          )}
+        </View>
+
+        {/* My Nutrition Logs Section */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>My Nutrition Logs</Text>
+          {loadingNutritionLogs ? (
+            <ActivityIndicator size="small" color="#FC7596" />
+          ) : nutritionLogs.length === 0 ? (
+            <Text style={styles.noNutritionLogsText}>No nutrition logs recorded yet. Go to Nutrition > Nutrient Deficiency Detection to log your details!</Text>
+          ) : (
+            nutritionLogs.map(log => {
+              const isExpanded = expandedLogId === log.id;
+              return (
+                <TouchableOpacity key={log.id} style={styles.nutritionLogCard} onPress={() => toggleLogExpansion(log.id)}>
+                  <View style={styles.nutritionLogHeader}>
+                    <Text style={styles.nutritionLogTitle}>Log on {new Date(log.log_date).toLocaleDateString()}</Text>
+                    <Ionicons
+                      name={isExpanded ? "chevron-up-outline" : "chevron-down-outline"}
+                      size={20}
+                      color="#6c757d"
+                    />
+                  </View>
+                  {isExpanded && (
+                    <View style={styles.nutritionLogDetails}>
+                      {log.symptoms && log.symptoms.length > 0 && (
+                        <Text style={styles.logDetailText}>Symptoms: {log.symptoms.join(', ')}</Text>
+                      )}
+                      {log.custom_symptom && (
+                        <Text style={styles.logDetailText}>Other Symptom: {log.custom_symptom}</Text>
+                      )}
+                      {log.meal_input && (
+                        <Text style={styles.logDetailText}>Dietary Intake: {log.meal_input}</Text>
+                      )}
+                      {log.symptom_results?.deficiencies && log.symptom_results.deficiencies.length > 0 && (
+                        <View style={styles.resultBlock}>
+                          <Text style={styles.resultTitle}>Symptom-Based Detection:</Text>
+                          <Text style={styles.resultText}>Deficiencies: {log.symptom_results.deficiencies.join(', ')}</Text>
+                          <Text style={styles.resultText}>Recommendations: {log.symptom_results.recommendations}</Text>
+                        </View>
+                      )}
+                      {log.diet_results?.deficiencies && log.diet_results.deficiencies.length > 0 && (
+                        <View style={styles.resultBlock}>
+                          <Text style={styles.resultTitle}>Dietary Intake-Based Detection:</Text>
+                          <Text style={styles.resultText}>Deficiencies: {log.diet_results.deficiencies.join(', ')}</Text>
+                          <Text style={styles.resultText}>Recommendations: {log.diet_results.recommendations}</Text>
+                        </View>
+                      )}
+                      {log.daily_nutrient_intake && Object.keys(log.daily_nutrient_intake).length > 0 && (
+                        <View style={styles.resultBlock}>
+                          <Text style={styles.resultTitle}>Daily Nutrient Intake:</Text>
+                          {Object.entries(log.daily_nutrient_intake).map(([nutrient, amount]) => (
+                            <Text key={nutrient} style={styles.resultText}>{nutrient}: {amount}</Text>
+                          ))}
+                        </View>
+                      )}
+                      <Text style={styles.logTimestamp}>Logged at: {new Date(log.created_at).toLocaleString()}</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
+            })
           )}
         </View>
 
@@ -1324,6 +1555,134 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#9CA3AF',
     marginRight: 4,
+  },
+  // New styles for Diet Plans
+  noDietPlansText: {
+    fontSize: 16,
+    color: '#6c757d',
+    textAlign: 'center',
+    fontStyle: 'italic',
+    paddingVertical: 20,
+  },
+  dietPlanCard: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  dietPlanHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 5,
+  },
+  dietPlanCardTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#FC7596',
+    marginBottom: 10,
+  },
+  dietPlanDetail: {
+    fontSize: 14,
+    color: '#495057',
+    marginBottom: 4,
+  },
+  mealsContainer: {
+    marginTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
+    paddingTop: 10,
+  },
+  mealDayContainer: {
+    marginBottom: 10,
+  },
+  mealDayTitle: {
+    fontSize: 15,
+    fontWeight: 'bold',
+    color: '#555',
+    marginBottom: 5,
+  },
+  mealText: {
+    fontSize: 14,
+    color: '#333',
+    marginLeft: 10,
+    lineHeight: 20,
+  },
+  // New styles for Nutrition Logs
+  noNutritionLogsText: {
+    fontSize: 16,
+    color: '#6c757d',
+    textAlign: 'center',
+    fontStyle: 'italic',
+    paddingVertical: 20,
+  },
+  nutritionLogCard: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  nutritionLogHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 5,
+  },
+  nutritionLogTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+  },
+  nutritionLogDetails: {
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
+  },
+  logDetailText: {
+    fontSize: 14,
+    color: '#495057',
+    marginBottom: 4,
+  },
+  resultBlock: {
+    backgroundColor: '#e9f7ef',
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 8,
+    marginBottom: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: '#28a745',
+  },
+  resultTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#28a745',
+    marginBottom: 5,
+  },
+  resultText: {
+    fontSize: 13,
+    color: '#333',
+    marginBottom: 2,
+  },
+  logTimestamp: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    marginTop: 8,
+    textAlign: 'right',
   },
 });
 

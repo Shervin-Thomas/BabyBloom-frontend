@@ -1,8 +1,9 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, FlatList } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, FlatList, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFonts } from 'expo-font';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'expo-router';
+import { supabase } from 'lib/supabase';
 
 export default function NutritionScreen() {
   const [loaded] = useFonts({
@@ -10,6 +11,37 @@ export default function NutritionScreen() {
   });
 
   const router = useRouter();
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [loadingAuth, setLoadingAuth] = useState(true);
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        setCurrentUserId(session.user.id);
+        setIsAuthenticated(true);
+      } else {
+        setCurrentUserId(null);
+        setIsAuthenticated(false);
+      }
+      setLoadingAuth(false);
+    };
+
+    checkAuth();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        setCurrentUserId(session.user.id);
+        setIsAuthenticated(true);
+      } else {
+        setCurrentUserId(null);
+        setIsAuthenticated(false);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   const nutritionFeatures = [
     { id: '1', title: 'Diet Planner', icon: 'nutrition-outline', route: '/features/nutrition/diet-planner' },
@@ -18,17 +50,23 @@ export default function NutritionScreen() {
     { id: '4', title: 'Dose Reminder', icon: 'timer-outline', route: '/features/nutrition/dose-reminder' },
   ];
 
-  if (!loaded) {
-    return null;
+  if (!loaded || loadingAuth) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#FC7596" />
+        <Text style={styles.loadingText}>Loading Nutrition Features...</Text>
+      </View>
+    );
   }
 
   const renderFeatureButton = ({ item }: { item: typeof nutritionFeatures[0] }) => (
     <TouchableOpacity
       style={styles.featureButton}
       onPress={() => router.push(item.route as any)}
+      disabled={!isAuthenticated} // Disable button if not authenticated
     >
       <Ionicons name={item.icon as any} size={30} color="#FC7596" />
-      <Text style={styles.featureButtonText}>{item.title}</Text>
+      <Text style={[styles.featureButtonText, !isAuthenticated && styles.disabledText]}>{item.title}</Text>
     </TouchableOpacity>
   );
 
@@ -41,13 +79,24 @@ export default function NutritionScreen() {
         <Text style={styles.headerTitle}>Nutrition</Text>
         <Text style={styles.headerSubtitle}>Your AI-Powered Health Advisor</Text>
       </View>
-      <FlatList
-        data={nutritionFeatures}
-        renderItem={renderFeatureButton}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.featureGrid}
-        numColumns={2}
-      />
+      {!isAuthenticated && (
+        <View style={styles.loginPromptContainer}>
+          <Ionicons name="lock-closed" size={50} color="#FC7596" style={styles.lockIcon} />
+          <Text style={styles.loginPromptTitle}>Access Restricted</Text>
+          <Text style={styles.loginPromptText}>
+            Please log in to access your personalized nutrition features.
+          </Text>
+        </View>
+      )}
+      <View style={[styles.featureGridWrapper, !isAuthenticated && styles.disabledFeatureGrid]}>
+        <FlatList
+          data={nutritionFeatures}
+          renderItem={renderFeatureButton}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.featureGrid}
+          numColumns={2}
+        />
+      </View>
     </View>
   );
 }
@@ -84,6 +133,13 @@ const styles = StyleSheet.create({
     color: 'white',
     opacity: 0.8,
   },
+  featureGridWrapper: {
+    flex: 1,
+    position: 'relative',
+  },
+  disabledFeatureGrid: {
+    opacity: 0.5,
+  },
   featureGrid: {
     padding: 20,
     justifyContent: 'space-between',
@@ -109,5 +165,47 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#333',
     textAlign: 'center',
+  },
+  disabledText: {
+    color: '#888',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F0F2F5',
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 18,
+    color: '#6B7280',
+  },
+  loginPromptContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+    zIndex: 100,
+  },
+  lockIcon: {
+    marginBottom: 20,
+  },
+  loginPromptTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#FC7596',
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  loginPromptText: {
+    fontSize: 16,
+    color: '#6B7280',
+    textAlign: 'center',
+    lineHeight: 24,
   },
 });
