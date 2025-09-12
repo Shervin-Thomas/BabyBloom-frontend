@@ -92,11 +92,13 @@ export default function ProfileTab() {
       console.log('User email confirmed:', session?.user?.email_confirmed_at);
       console.log('User email:', session?.user?.email);
       setSession(session);
+      console.log('Session set in state, current session:', !!session, 'user ID:', session?.user?.id);
 
       if (session?.user) {
         // For Google OAuth users, email_confirmed_at might be null but they're still valid
         // Check if user has email (which means they're authenticated)
         if (session.user.email) {
+          console.log('Authenticated user found, loading profile...');
           setLoading(true);
           await loadProfile(session.user.id);
           await loadUserPosts(session.user.id);
@@ -104,6 +106,7 @@ export default function ProfileTab() {
           await loadUserNutritionLogs(session.user.id);
           setLoading(false);
         } else {
+          console.log('Session user exists but no email, setting auth mode to login.');
           setProfile(null);
           setPosts([]);
           setDietPlans([]);
@@ -112,6 +115,7 @@ export default function ProfileTab() {
           setLoading(false);
         }
       } else {
+        console.log('No session or user found, setting auth mode to login.');
         setProfile(null);
         setPosts([]);
         setDietPlans([]);
@@ -215,51 +219,13 @@ export default function ProfileTab() {
       // If no posts from database, show sample posts
       if (userPosts.length === 0) {
         console.log('📝 No posts from database, showing sample posts');
-        setPosts([
-          {
-            id: 'sample-1',
-            user_id: userId,
-            content: "Welcome to BabyBloom! 🌸 This is a sample post showing how your posts will appear here.",
-            image_url: undefined,
-            likes_count: 5,
-            comments_count: 2,
-            created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-            updated_at: new Date().toISOString(),
-            isLiked: false,
-            user_profiles: { full_name: profile?.full_name || 'User', email: profile?.email || '' }
-          },
-          {
-            id: 'sample-2',
-            user_id: userId,
-            content: "You can create posts from the Community tab and they will appear here in your profile! 💕",
-            image_url: undefined,
-            likes_count: 12,
-            comments_count: 4,
-            created_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-            updated_at: new Date().toISOString(),
-            isLiked: true,
-            user_profiles: { full_name: profile?.full_name || 'User', email: profile?.email || '' }
-          }
-        ]);
+        setPosts([]); // Set posts to empty array instead of sample posts
       }
     } catch (error) {
       console.error('❌ Error loading user posts:', error);
-      // Set loading to false and show sample posts even on error
+      // Set loading to false and ensure no sample posts are shown on error
       setLoading(false);
-      setPosts([
-        {
-          id: 'fallback-1',
-          user_id: userId,
-          content: "Welcome to BabyBloom! 🌸 Start sharing your pregnancy journey with the community.",
-          image_url: undefined,
-          likes_count: 1,
-          comments_count: 0,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          isLiked: false,
-          user_profiles: { full_name: profile?.full_name || 'User', email: profile?.email || '' }
-        }
-      ]);
+      setPosts([]); // Set posts to empty array instead of sample posts
     }
   };
 
@@ -501,6 +467,43 @@ export default function ProfileTab() {
     );
   };
 
+  const handleDeleteComment = async (postId: string, commentId: string) => {
+    if (!session?.user?.id) return;
+
+    Alert.alert(
+      'Delete Comment',
+      'Are you sure you want to delete this comment?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await postsService.deleteComment(commentId, session.user.id);
+              // Update local state
+              setComments(prev => {
+                const newCommentsForPost = (prev[postId] || []).filter(c => c.id !== commentId);
+                return { ...prev, [postId]: newCommentsForPost };
+              });
+              setPosts(prevPosts =>
+                prevPosts.map(post =>
+                  post.id === postId
+                    ? { ...post, comments_count: Math.max(0, post.comments_count - 1) }
+                    : post
+                )
+              );
+              Alert.alert('Success', 'Comment deleted successfully!');
+            } catch (error) {
+              console.error('Error deleting comment:', error);
+              Alert.alert('Error', 'Failed to delete comment.');
+            }
+          }
+        }
+      ]
+    );
+  };
+
   // Show login/register forms if not authenticated
   if (!session || !session.user?.email) {
     return (
@@ -508,9 +511,9 @@ export default function ProfileTab() {
         <GradientHeader title="Profile" />
         <ScrollView style={styles.content}>
           {authMode === 'login' ? (
-            <LoginForm onSwitchToRegister={() => setAuthMode('register')} />
+            <LoginForm onSwitchToRegister={() => setAuthMode('register')} setLoading={setLoading} />
           ) : (
-            <RegisterForm onSwitchToLogin={() => setAuthMode('login')} />
+            <RegisterForm onSwitchToLogin={() => setAuthMode('login')} setLoading={setLoading} />
           )}
         </ScrollView>
       </View>
@@ -688,6 +691,14 @@ export default function ProfileTab() {
                           <Text style={styles.commentText}>{comment.content}</Text>
                           <Text style={styles.commentTime}>{formatTimeAgo(comment.created_at)}</Text>
                         </View>
+                        {session?.user?.id === comment.user_id && (
+                          <TouchableOpacity
+                            style={styles.deleteCommentButton}
+                            onPress={() => handleDeleteComment(post.id, comment.id)}
+                          >
+                            <Ionicons name="trash-outline" size={16} color="#dc3545" />
+                          </TouchableOpacity>
+                        )}
                       </View>
                     ))}
 
@@ -748,7 +759,7 @@ export default function ProfileTab() {
           {loadingDietPlans ? (
             <ActivityIndicator size="small" color="#FC7596" />
           ) : dietPlans.length === 0 ? (
-            <Text style={styles.noDietPlansText}>No diet plans generated yet. Go to Nutrition > Diet Planner to create one!</Text>
+            <Text style={styles.noDietPlansText}>No diet plans generated yet. Go to Nutrition &gt; Diet Planner to create one!</Text>
           ) : (
             dietPlans.map(plan => {
               const isExpanded = expandedDietPlanId === plan.id;
@@ -795,7 +806,7 @@ export default function ProfileTab() {
           {loadingNutritionLogs ? (
             <ActivityIndicator size="small" color="#FC7596" />
           ) : nutritionLogs.length === 0 ? (
-            <Text style={styles.noNutritionLogsText}>No nutrition logs recorded yet. Go to Nutrition > Nutrient Deficiency Detection to log your details!</Text>
+            <Text style={styles.noNutritionLogsText}>No nutrition logs recorded yet. Go to Nutrition &gt; Nutrient Deficiency Detection to log your details!</Text>
           ) : (
             nutritionLogs.map(log => {
               const isExpanded = expandedLogId === log.id;
@@ -1509,6 +1520,10 @@ const styles = StyleSheet.create({
   commentTime: {
     fontSize: 11,
     color: '#9CA3AF',
+  },
+  deleteCommentButton: {
+    marginLeft: 10,
+    padding: 5,
   },
   viewMoreComments: {
     paddingVertical: 8,

@@ -8,9 +8,10 @@ import { googleAuthService } from 'lib/googleAuth';
 
 interface RegisterProps {
   onSwitchToLogin?: () => void;
+  setLoading: (loading: boolean) => void;
 }
 
-export default function Register({ onSwitchToLogin }: RegisterProps) {
+export default function Register({ onSwitchToLogin, setLoading }: RegisterProps) {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -95,11 +96,22 @@ export default function Register({ onSwitchToLogin }: RegisterProps) {
   };
 
   const handleGoogleSignIn = async () => {
-    const { data, error } = await googleAuthService.signInWithGoogle();
-    if (error) {
-      Alert.alert('Google Sign-In Failed', error.message || 'An error occurred during Google sign-in');
+    console.log('🔘 Google button clicked in Register component');
+    try {
+      onSwitchToLogin?.();
+      const { data, error } = await googleAuthService.signInWithGoogle();
+      if (error) {
+        console.error('❌ Register: Google sign-in failed:', error);
+        Alert.alert('Google Sign-In Failed', error.message || 'An error occurred during Google sign-in');
+      } else {
+        console.log('✅ Register: Google sign-in successful:', data);
+      }
+    } catch (err) {
+      console.error('💥 Register: Unexpected error:', err);
+      Alert.alert('Error', 'An unexpected error occurred');
+    } finally {
+      onSwitchToLogin?.();
     }
-    // Success is handled by the auth state listener in the parent component
   };
 
   return (

@@ -7,9 +7,10 @@ import { googleAuthService } from 'lib/googleAuth';
 
 interface LoginProps {
   onSwitchToRegister?: () => void;
+  setLoading: (loading: boolean) => void;
 }
 
-export default function Login({ onSwitchToRegister }: LoginProps) {
+export default function Login({ onSwitchToRegister, setLoading }: LoginProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -22,6 +23,7 @@ export default function Login({ onSwitchToRegister }: LoginProps) {
   const handleGoogleSignIn = async () => {
     console.log('🔘 Google button clicked in Login component');
     try {
+      setLoading(true);
       const { data, error } = await googleAuthService.signInWithGoogle();
       if (error) {
         console.error('❌ Login: Google sign-in failed:', error);
@@ -32,6 +34,8 @@ export default function Login({ onSwitchToRegister }: LoginProps) {
     } catch (err) {
       console.error('💥 Login: Unexpected error:', err);
       Alert.alert('Error', 'An unexpected error occurred');
+    } finally {
+      setLoading(false);
     }
   };
 

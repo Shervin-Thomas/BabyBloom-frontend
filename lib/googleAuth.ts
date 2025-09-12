@@ -11,7 +11,7 @@ export const googleAuthService = {
       console.log('🚀 Starting Google sign-in...');
 
       const redirectUri = AuthSession.makeRedirectUri({
-        scheme: 'babybloom',
+        scheme: 'babybloomfrontend',
       });
       console.log('📍 Redirect URI:', redirectUri);
 
@@ -36,15 +36,28 @@ export const googleAuthService = {
         try {
           const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUri);
           console.log('🔄 Browser session result:', result);
-
-          if (result.type === 'success' && result.url) {
-            console.log('✅ OAuth completed successfully');
+          console.log('🔄 Browser session result type:', result.type);
+          if (result.type === 'success') {
+            console.log('✅ OAuth completed successfully with URL:', result.url);
             // The redirect will be handled by Supabase automatically
+          } else if (result.type === 'cancel') {
+            console.log('❌ OAuth cancelled by user.');
+            throw new Error('Google sign-in cancelled by user.');
+          } else if (result.type === 'dismiss') {
+            console.log('❌ OAuth dismissed by user (e.g., closed browser tab).');
+            throw new Error('Google sign-in dismissed by user.');
+          } else {
+            console.log('⚠️ Unexpected browser session result type:', result.type);
+            throw new Error('Unexpected error during Google sign-in.');
           }
-        } catch (browserError) {
+        } catch (browserError: any) {
           console.error('❌ Browser error:', browserError);
-          throw new Error('Failed to open browser for authentication');
+          // More specific error for failing to open the browser
+          throw new Error(`Failed to open browser for authentication: ${browserError.message || browserError}`);
         }
+      } else {
+        console.error('❌ Supabase did not return a URL for OAuth.');
+        throw new Error('Failed to get OAuth URL from Supabase.');
       }
 
       console.log('✅ Google sign-in initiated successfully');

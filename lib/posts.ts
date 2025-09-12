@@ -52,11 +52,13 @@ export const postsService = {
       }
 
       console.log('✅ NEW POSTS SERVICE - Posts fetched successfully:', posts?.length || 0, 'posts');
+      console.log('Posts data:', posts);
 
       if (!posts) return [];
 
       // Fetch user profiles for all posts
       const userIds = [...new Set(posts.map(post => post.user_id))];
+      console.log('User IDs for posts:', userIds);
       const { data: profiles } = await supabase
         .from('profiles')
         .select('id, full_name, email')
@@ -67,6 +69,7 @@ export const postsService = {
       profiles?.forEach(profile => {
         profileMap.set(profile.id, profile);
       });
+      console.log('Profile map for posts:', profileMap);
 
       // Check which posts the current user has liked (if user is provided)
       let likedPostIds = new Set();
@@ -84,7 +87,7 @@ export const postsService = {
       return posts.map(post => ({
         ...post,
         isLiked: likedPostIds.has(post.id),
-        user_profiles: profileMap.get(post.user_id) || { full_name: 'User', email: '' }
+        user_profiles: profileMap.get(post.user_id) || undefined
       }));
     } catch (error) {
       console.error('❌ NEW POSTS SERVICE - Error in getPosts:', error);
@@ -138,7 +141,7 @@ export const postsService = {
       return posts.map(post => ({
         ...post,
         isLiked: likedPostIds.has(post.id),
-        user_profiles: profile || { full_name: 'User', email: '' }
+        user_profiles: profile || undefined
       }));
     } catch (error) {
       console.error('❌ NEW POSTS SERVICE - Error in getUserPosts:', error);
@@ -180,7 +183,7 @@ export const postsService = {
       return {
         ...data,
         isLiked: false,
-        user_profiles: profile || { full_name: 'User', email: '' }
+        user_profiles: profile || undefined
       };
     } catch (error) {
       console.error('❌ Error creating post:', error);
@@ -302,6 +305,7 @@ export const postsService = {
       }
 
       console.log('📝 Raw comments from database:', comments?.length || 0, 'comments');
+      console.log('Raw comments data:', comments);
 
       if (!comments || comments.length === 0) {
         console.log('✅ No comments found for post');
@@ -324,6 +328,7 @@ export const postsService = {
           profiles = [];
         } else {
           profiles = profilesData || [];
+          console.log('Fetched comment user profiles:', profiles);
         }
       }
 
@@ -332,6 +337,7 @@ export const postsService = {
       profiles.forEach(profile => {
         profileMap.set(profile.id, profile);
       });
+      console.log('Profile map for comments:', profileMap);
 
       // Transform the data to match expected format
       const transformedComments = comments.map((comment: any) => ({
@@ -342,12 +348,13 @@ export const postsService = {
         created_at: comment.created_at,
         updated_at: comment.updated_at,
         user_profiles: {
-          full_name: profileMap.get(comment.user_id)?.full_name || 'User',
+          full_name: profileMap.get(comment.user_id)?.full_name || undefined,
           email: profileMap.get(comment.user_id)?.email || ''
         }
       }));
 
       console.log('✅ Comments fetched successfully:', transformedComments.length, 'comments');
+      console.log('Transformed comments data:', transformedComments);
       return transformedComments;
     } catch (error) {
       console.error('❌ Error in getPostComments:', error);
@@ -382,6 +389,7 @@ export const postsService = {
         .select('id, full_name, email')
         .eq('id', userId)
         .single();
+      console.log('Profile data for new comment author:', profile);
 
       if (profileError) {
         console.error('❌ Error fetching comment author profile:', profileError);
@@ -396,7 +404,7 @@ export const postsService = {
         created_at: comment.created_at,
         updated_at: comment.updated_at,
         user_profiles: {
-          full_name: profile?.full_name || 'User',
+          full_name: profile?.full_name || undefined,
           email: profile?.email || ''
         }
       };
