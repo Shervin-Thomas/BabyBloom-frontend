@@ -9,6 +9,8 @@ import { Session } from '@supabase/supabase-js';
 import LoginForm from '@components/login';
 import RegisterForm from '@components/register';
 import GradientHeader from '@/components/GradientHeader';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 
 interface MealItem {
   day: string;
@@ -68,6 +70,8 @@ export default function ProfileTab() {
   const [nutritionLogs, setNutritionLogs] = useState<UserNutritionLog[]>([]);
   const [loadingNutritionLogs, setLoadingNutritionLogs] = useState(false);
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
+  const [showAllPosts, setShowAllPosts] = useState(false); // New state for showing all posts
+  const [showAllNutritionLogs, setShowAllNutritionLogs] = useState(false); // New state for showing all nutrition logs
 
   useEffect(() => {
     const loadSession = async () => {
@@ -504,6 +508,90 @@ export default function ProfileTab() {
     );
   };
 
+
+  const handleDownloadPdf = async () => {
+    if (nutritionLogs.length === 0) {
+      Alert.alert('No Logs', 'There are no nutrition logs to generate a report.');
+      return;
+    }
+
+    try {
+      Alert.alert('Generating Report', 'Please wait while we create your nutrition report...');
+      
+      // Create a simple text-based report
+      let reportContent = '🌸 BabyBloom Nutrition Log Report\n';
+      reportContent += `Generated on: ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}\n\n`;
+      
+      nutritionLogs.forEach((log, index) => {
+        reportContent += `=== Log Entry ${index + 1} ===\n`;
+        reportContent += `Date: ${new Date(log.log_date).toLocaleDateString()}\n`;
+        
+        if (log.symptoms && log.symptoms.length > 0) {
+          reportContent += `🩺 Symptoms: ${log.symptoms.join(', ')}\n`;
+        }
+        
+        if (log.custom_symptom) {
+          reportContent += `📝 Additional Symptom: ${log.custom_symptom}\n`;
+        }
+        
+        if (log.meal_input) {
+          reportContent += `🍽️ Dietary Intake: ${log.meal_input}\n`;
+        }
+        
+        if (log.symptom_results?.deficiencies && log.symptom_results.deficiencies.length > 0) {
+          reportContent += `🔍 Symptom-Based Detection:\n`;
+          reportContent += `  Deficiencies: ${log.symptom_results.deficiencies.join(', ')}\n`;
+          reportContent += `  Recommendations: ${log.symptom_results.recommendations}\n`;
+        }
+        
+        if (log.diet_results?.deficiencies && log.diet_results.deficiencies.length > 0) {
+          reportContent += `🥗 Dietary Intake Analysis:\n`;
+          reportContent += `  Deficiencies: ${log.diet_results.deficiencies.join(', ')}\n`;
+          reportContent += `  Recommendations: ${log.diet_results.recommendations}\n`;
+        }
+        
+        if (log.daily_nutrient_intake && Object.keys(log.daily_nutrient_intake).length > 0) {
+          reportContent += `📈 Daily Nutrient Intake:\n`;
+          Object.entries(log.daily_nutrient_intake).forEach(([nutrient, amount]) => {
+            reportContent += `  ${nutrient}: ${amount}\n`;
+          });
+        }
+        
+        reportContent += `📅 Logged at: ${new Date(log.created_at).toLocaleString()}\n\n`;
+      });
+      
+      // Save as text file
+      const fileName = `BabyBloom_Nutrition_Report_${new Date().toISOString().split('T')[0]}.txt`;
+      const fileUri = FileSystem.documentDirectory + fileName;
+      
+      await FileSystem.writeAsStringAsync(fileUri, reportContent, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+      
+      // Show success message
+      Alert.alert(
+        '🎉 Report Generated Successfully!',
+        `Your nutrition report has been saved to your device.\n\nFile: ${fileName}`,
+        [
+          {
+            text: 'View Report',
+            onPress: () => {
+              Alert.alert('Nutrition Report', reportContent, [{ text: 'Close' }]);
+            }
+          },
+          {
+            text: 'OK',
+            style: 'default'
+          }
+        ]
+      );
+
+    } catch (error) {
+      console.error('Error generating report:', error);
+      Alert.alert('Error', 'Failed to generate report. Please try again.');
+    }
+  };
+
   // Show login/register forms if not authenticated
   if (!session || !session.user?.email) {
     return (
@@ -613,7 +701,7 @@ export default function ProfileTab() {
           {posts.length === 0 ? (
             <Text style={styles.noPostsText}>No posts yet. Share your pregnancy journey!</Text>
           ) : (
-            posts.map((post) => (
+            (showAllPosts ? posts : [posts[0]]).map((post) => (
               <View key={post.id} style={styles.postCard}>
                 {/* Post Header */}
                 <View style={styles.postHeader}>
@@ -679,7 +767,7 @@ export default function ProfileTab() {
                 {/* Comments Preview - Always show first 2 comments */}
                 {comments[post.id] && comments[post.id].length > 0 && (
                   <View style={styles.commentsPreview}>
-                    {comments[post.id].slice(0, showComments === post.id ? undefined : 2).map(comment => (
+                    {comments[post.id].slice(showComments === post.id ? 0 : Math.max(0, comments[post.id].length - 1)).map(comment => (
                       <View key={comment.id} style={styles.comment}>
                         <View style={styles.commentAvatar}>
                           <Text style={styles.commentAvatarText}>
@@ -702,8 +790,8 @@ export default function ProfileTab() {
                       </View>
                     ))}
 
-                    {/* Show "View more comments" if there are more than 2 comments and not expanded */}
-                    {comments[post.id].length > 2 && showComments !== post.id && (
+                    {/* Show "View more comments" if there are more than 1 comment and not expanded */}
+                    {comments[post.id].length > 1 && showComments !== post.id && (
                       <TouchableOpacity
                         style={styles.viewMoreComments}
                         onPress={() => {
@@ -712,7 +800,7 @@ export default function ProfileTab() {
                         }}
                       >
                         <Text style={styles.viewMoreText}>
-                          View {comments[post.id].length - 2} more comments
+                          View {comments[post.id].length - 1} more comments
                         </Text>
                       </TouchableOpacity>
                     )}
@@ -750,6 +838,16 @@ export default function ProfileTab() {
                 )}
               </View>
             ))
+          )}
+          {posts.length > 1 && !showAllPosts && (
+            <TouchableOpacity style={styles.showMoreButton} onPress={() => setShowAllPosts(true)}>
+              <Text style={styles.showMoreButtonText}>Show More Posts ({posts.length - 1} more)</Text>
+            </TouchableOpacity>
+          )}
+          {posts.length > 1 && showAllPosts && (
+            <TouchableOpacity style={styles.showMoreButton} onPress={() => setShowAllPosts(false)}>
+              <Text style={styles.showMoreButtonText}>Show Less Posts</Text>
+            </TouchableOpacity>
           )}
         </View>
 
@@ -803,62 +901,84 @@ export default function ProfileTab() {
         {/* My Nutrition Logs Section */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>My Nutrition Logs</Text>
-          {loadingNutritionLogs ? (
-            <ActivityIndicator size="small" color="#FC7596" />
-          ) : nutritionLogs.length === 0 ? (
-            <Text style={styles.noNutritionLogsText}>No nutrition logs recorded yet. Go to Nutrition &gt; Nutrient Deficiency Detection to log your details!</Text>
-          ) : (
-            nutritionLogs.map(log => {
-              const isExpanded = expandedLogId === log.id;
-              return (
-                <TouchableOpacity key={log.id} style={styles.nutritionLogCard} onPress={() => toggleLogExpansion(log.id)}>
-                  <View style={styles.nutritionLogHeader}>
-                    <Text style={styles.nutritionLogTitle}>Log on {new Date(log.log_date).toLocaleDateString()}</Text>
-                    <Ionicons
-                      name={isExpanded ? "chevron-up-outline" : "chevron-down-outline"}
-                      size={20}
-                      color="#6c757d"
-                    />
-                  </View>
-                  {isExpanded && (
-                    <View style={styles.nutritionLogDetails}>
-                      {log.symptoms && log.symptoms.length > 0 && (
-                        <Text style={styles.logDetailText}>Symptoms: {log.symptoms.join(', ')}</Text>
-                      )}
-                      {log.custom_symptom && (
-                        <Text style={styles.logDetailText}>Other Symptom: {log.custom_symptom}</Text>
-                      )}
-                      {log.meal_input && (
-                        <Text style={styles.logDetailText}>Dietary Intake: {log.meal_input}</Text>
-                      )}
-                      {log.symptom_results?.deficiencies && log.symptom_results.deficiencies.length > 0 && (
-                        <View style={styles.resultBlock}>
-                          <Text style={styles.resultTitle}>Symptom-Based Detection:</Text>
-                          <Text style={styles.resultText}>Deficiencies: {log.symptom_results.deficiencies.join(', ')}</Text>
-                          <Text style={styles.resultText}>Recommendations: {log.symptom_results.recommendations}</Text>
-                        </View>
-                      )}
-                      {log.diet_results?.deficiencies && log.diet_results.deficiencies.length > 0 && (
-                        <View style={styles.resultBlock}>
-                          <Text style={styles.resultTitle}>Dietary Intake-Based Detection:</Text>
-                          <Text style={styles.resultText}>Deficiencies: {log.diet_results.deficiencies.join(', ')}</Text>
-                          <Text style={styles.resultText}>Recommendations: {log.diet_results.recommendations}</Text>
-                        </View>
-                      )}
-                      {log.daily_nutrient_intake && Object.keys(log.daily_nutrient_intake).length > 0 && (
-                        <View style={styles.resultBlock}>
-                          <Text style={styles.resultTitle}>Daily Nutrient Intake:</Text>
-                          {Object.entries(log.daily_nutrient_intake).map(([nutrient, amount]) => (
-                            <Text key={nutrient} style={styles.resultText}>{nutrient}: {amount}</Text>
-                          ))}
-                        </View>
-                      )}
-                      <Text style={styles.logTimestamp}>Logged at: {new Date(log.created_at).toLocaleString()}</Text>
+          <View style={styles.nutritionLogButtonsContainer}>
+            {/* Button to view all logs */}
+            <TouchableOpacity
+              style={styles.nutritionLogActionButton}
+              onPress={() => setShowAllNutritionLogs(prev => !prev)}
+            >
+              <Text style={styles.nutritionLogActionButtonText}>
+                {showAllNutritionLogs ? 'Hide Logs' : 'View All Logs'}
+              </Text>
+            </TouchableOpacity>
+
+            {/* Button to download PDF report */}
+            <TouchableOpacity
+              style={styles.nutritionLogActionButton}
+              onPress={() => handleDownloadPdf()}
+            >
+              <Text style={styles.nutritionLogActionButtonText}>Download PDF Report</Text>
+            </TouchableOpacity>
+          </View>
+
+          {showAllNutritionLogs && (
+            loadingNutritionLogs ? (
+              <ActivityIndicator size="small" color="#FC7596" style={{ marginTop: 20 }} />
+            ) : nutritionLogs.length === 0 ? (
+              <Text style={styles.noNutritionLogsText}>No nutrition logs recorded yet. Go to Nutrition &gt; Nutrient Deficiency Detection to log your details!</Text>
+            ) : (
+              nutritionLogs.map(log => {
+                const isExpanded = expandedLogId === log.id;
+                return (
+                  <TouchableOpacity key={log.id} style={styles.nutritionLogCard} onPress={() => toggleLogExpansion(log.id)}>
+                    <View style={styles.nutritionLogHeader}>
+                      <Text style={styles.nutritionLogTitle}>Log on {new Date(log.log_date).toLocaleDateString()}</Text>
+                      <Ionicons
+                        name={isExpanded ? "chevron-up-outline" : "chevron-down-outline"}
+                        size={20}
+                        color="#6c757d"
+                      />
                     </View>
-                  )}
-                </TouchableOpacity>
-              );
-            })
+                    {isExpanded && (
+                      <View style={styles.nutritionLogDetails}>
+                        {log.symptoms && log.symptoms.length > 0 && (
+                          <Text style={styles.logDetailText}>Symptoms: {log.symptoms.join(', ')}</Text>
+                        )}
+                        {log.custom_symptom && (
+                          <Text style={styles.logDetailText}>Other Symptom: {log.custom_symptom}</Text>
+                        )}
+                        {log.meal_input && (
+                          <Text style={styles.logDetailText}>Dietary Intake: {log.meal_input}</Text>
+                        )}
+                        {log.symptom_results?.deficiencies && log.symptom_results.deficiencies.length > 0 && (
+                          <View style={styles.resultBlock}>
+                            <Text style={styles.resultTitle}>Symptom-Based Detection:</Text>
+                            <Text style={styles.resultText}>Deficiencies: {log.symptom_results.deficiencies.join(', ')}</Text>
+                            <Text style={styles.resultText}>Recommendations: {log.symptom_results.recommendations}</Text>
+                          </View>
+                        )}
+                        {log.diet_results?.deficiencies && log.diet_results.deficiencies.length > 0 && (
+                          <View style={styles.resultBlock}>
+                            <Text style={styles.resultTitle}>Dietary Intake-Based Detection:</Text>
+                            <Text style={styles.resultText}>Deficiencies: {log.diet_results.deficiencies.join(', ')}</Text>
+                            <Text style={styles.resultText}>Recommendations: {log.diet_results.recommendations}</Text>
+                          </View>
+                        )}
+                        {log.daily_nutrient_intake && Object.keys(log.daily_nutrient_intake).length > 0 && (
+                          <View style={styles.resultBlock}>
+                            <Text style={styles.resultTitle}>Daily Nutrient Intake:</Text>
+                            {Object.entries(log.daily_nutrient_intake).map(([nutrient, amount]) => (
+                              <Text key={nutrient} style={styles.resultText}>{nutrient}: {amount}</Text>
+                            ))}
+                          </View>
+                        )}
+                        <Text style={styles.logTimestamp}>Logged at: {new Date(log.created_at).toLocaleString()}</Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })
+            )
           )}
         </View>
 
@@ -1698,6 +1818,38 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     marginTop: 8,
     textAlign: 'right',
+  },
+  showMoreButton: {
+    alignSelf: 'center',
+    marginTop: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 20,
+    backgroundColor: '#e9ecef',
+    borderRadius: 8,
+  },
+  showMoreButtonText: {
+    fontSize: 14,
+    color: '#495057',
+    fontWeight: '600',
+  },
+  nutritionLogButtonsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: 15,
+  },
+  nutritionLogActionButton: {
+    backgroundColor: '#FC7596',
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    flex: 1,
+    marginHorizontal: 5,
+  },
+  nutritionLogActionButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
 
