@@ -1,4 +1,4 @@
-import { Text, View, ScrollView, Image, StyleSheet, Pressable, Dimensions } from 'react-native';
+import { Text, View, ScrollView, Image, StyleSheet, Pressable, Dimensions, ImageBackground } from 'react-native';
 import { useFonts } from 'expo-font';
 import GradientHeader from '@/components/GradientHeader';
 import { useState } from 'react';
@@ -83,10 +83,14 @@ export default function TabOneScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <ImageBackground 
+      source={require('../../../assets/images/bg8.jpg')} 
+      style={styles.container}
+      resizeMode="cover"
+    >
       <GradientHeader 
-        title="BabyBloom" 
-        subtitle="Your pregnancy journey companion"
+        title="BabyBloom"
+        logoSource={require('../../../assets/images/logo.png')}
       />
       <ScrollView contentContainerStyle={styles.scrollViewContent}>
         <View style={styles.featureGrid}>
@@ -97,6 +101,8 @@ export default function TabOneScreen() {
               title={feature.title}
               onPress={feature.action}
               color={feature.color}
+              textColor="#FFFFFF"
+              iconTintColor="#FFFFFF"
             />
           ))}
         </View>
@@ -141,14 +147,14 @@ export default function TabOneScreen() {
         </View>
 
       </ScrollView>
-    </View>
+    </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F0F2F5',
+    backgroundColor: 'transparent',
   },
   scrollViewContent: {
     // padding: 10, // Removed padding to allow carousel to span full width

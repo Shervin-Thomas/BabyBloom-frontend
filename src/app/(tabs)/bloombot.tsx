@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Animated } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Animated, ImageBackground } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import GradientHeader from '@/components/GradientHeader';
-import { openRouterService } from 'lib/openRouter'; // Import OpenRouter service
+import { openRouterService } from 'lib/openRouter'; // Import Openrouter service
 
 interface Message {
   id: string;
@@ -140,12 +140,20 @@ export default function BloomBotTab() {
   };
 
   return (
-    <KeyboardAvoidingView
+    <ImageBackground 
+      source={require('../../../assets/images/bg8.jpg')} 
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+      resizeMode="cover"
     >
-      <GradientHeader title="Bloom Bot" />
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+      >
+      <GradientHeader 
+        title="BloomBot"
+        iconName="chatbubble-ellipses"
+      />
 
       {/* Chat Messages */}
       <ScrollView
@@ -253,18 +261,19 @@ export default function BloomBotTab() {
           </TouchableOpacity>
         </View>
       </View>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: 'transparent',
   },
   messagesContainer: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: 'transparent',
   },
   messagesContent: {
     padding: 16,

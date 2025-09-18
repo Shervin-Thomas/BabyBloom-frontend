@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { View, StyleSheet, Text, TextInput, TouchableOpacity, Alert, ScrollView, Modal, RefreshControl, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, Text, TextInput, TouchableOpacity, Alert, ScrollView, Modal, RefreshControl, ActivityIndicator, ImageBackground } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from 'lib/supabase';
@@ -595,8 +595,15 @@ export default function ProfileTab() {
   // Show login/register forms if not authenticated
   if (!session || !session.user?.email) {
     return (
-      <View style={styles.container}>
-        <GradientHeader title="Profile" />
+      <ImageBackground 
+        source={require('../../../assets/images/bg8.jpg')} 
+        style={styles.container}
+        resizeMode="cover"
+      >
+        <GradientHeader 
+          title="Profile" 
+          iconName="person"
+        />
         <ScrollView style={styles.content}>
           {authMode === 'login' ? (
             <LoginForm onSwitchToRegister={() => setAuthMode('register')} setLoading={setLoading} />
@@ -604,26 +611,40 @@ export default function ProfileTab() {
             <RegisterForm onSwitchToLogin={() => setAuthMode('login')} setLoading={setLoading} />
           )}
         </ScrollView>
-      </View>
+      </ImageBackground>
     );
   }
 
   // Show loading state while profile loads
   if (loading) {
     return (
-      <View style={styles.container}>
-        <GradientHeader title="Dashboard" />
+      <ImageBackground 
+        source={require('../../../assets/images/bg8.jpg')} 
+        style={styles.container}
+        resizeMode="cover"
+      >
+        <GradientHeader 
+          title="Profile" 
+          iconName="person"
+        />
         <View style={styles.loadingContainer}>
           <Text style={styles.loadingText}>Loading your profile...</Text>
         </View>
-      </View>
+      </ImageBackground>
     );
   }
 
   // Show dashboard for authenticated users (with or without profile)
   return (
-    <View style={styles.container}>
-      <GradientHeader title="Dashboard" />
+    <ImageBackground 
+      source={require('../../../assets/images/bg8.jpg')} 
+      style={styles.container}
+      resizeMode="cover"
+    >
+      <GradientHeader 
+        title="Profile" 
+        iconName="person"
+      />
       <ScrollView
         style={styles.content}
         contentContainerStyle={styles.scrollContainer}
@@ -1226,14 +1247,14 @@ export default function ProfileTab() {
             </View>
           </View>
         </Modal>
-      </View>
+      </ImageBackground>
     );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: 'transparent',
   },
   content: {
     flex: 1,

@@ -1,4 +1,4 @@
-import { Text, View, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
+import { Text, View, ScrollView, TouchableOpacity, StyleSheet, ImageBackground } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import GradientHeader from '@/components/GradientHeader';
 
@@ -55,10 +55,14 @@ const cartIconStyles = StyleSheet.create({
 
 export default function ShopScreen() {
   return (
-    <View style={styles.container}>
+    <ImageBackground 
+      source={require('../../../assets/images/bg1.jpg')} 
+      style={styles.container}
+      resizeMode="cover"
+    >
       <GradientHeader 
-        title="🛍️ Shop" 
-        subtitle="Everything for your pregnancy journey"
+        title="Shop"
+        iconName="bag"
       />
       <ScrollView
         style={styles.content}
@@ -114,14 +118,14 @@ export default function ShopScreen() {
           </View>
         </View>
       </ScrollView>
-    </View>
+    </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: 'transparent',
   },
   content: {
     flex: 1,

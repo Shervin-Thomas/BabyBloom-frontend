@@ -40,12 +40,7 @@ export default function Login({ onSwitchToRegister, setLoading }: LoginProps) {
   };
 
   return (
-    <LinearGradient
-      colors={['#FC7596', '#FF9A9E', '#FECFEF']}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={styles.container}
-    >
+    <View style={[styles.container, { backgroundColor: 'transparent' }]}>
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
           {/* Header Section */}
@@ -154,7 +149,7 @@ export default function Login({ onSwitchToRegister, setLoading }: LoginProps) {
           </View>
         </View>
       </ScrollView>
-    </LinearGradient>
+    </View>
   );
 }
 

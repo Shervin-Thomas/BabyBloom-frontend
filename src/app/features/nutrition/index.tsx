@@ -111,7 +111,7 @@ export default function NutritionScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F0F2F5',
+    backgroundColor: 'transparent',
   },
   customHeader: {
     backgroundColor: '#FC7596', // Or any gradient color matching your app's theme
@@ -180,7 +180,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F0F2F5',
+    backgroundColor: 'transparent',
   },
   loadingText: {
     marginTop: 10,

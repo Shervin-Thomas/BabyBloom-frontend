@@ -1,4 +1,4 @@
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Image, TextInput, Alert, RefreshControl } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Image, TextInput, Alert, RefreshControl, ImageBackground } from 'react-native';
 import { useState, useEffect } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -345,10 +345,14 @@ export default function CommunityScreen() {
   );
 
   return (
-    <View style={styles.container}>
+    <ImageBackground 
+      source={require('../../../assets/images/bg8.jpg')} 
+      style={styles.container}
+      resizeMode="cover"
+    >
       <GradientHeader 
-        title="👥 Community" 
-        subtitle="Connect with other moms"
+        title="Community"
+        iconName="people"
       />
       
       <ScrollView
@@ -458,14 +462,14 @@ export default function CommunityScreen() {
         {/* Bottom spacing for better scrolling */}
         <View style={styles.bottomSpacing} />
       </ScrollView>
-    </View>
+    </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: 'transparent',
   },
   content: {
     flex: 1,

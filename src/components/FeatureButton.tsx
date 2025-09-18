@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, Text, View, StyleSheet, Image } from 'react-native';
+import { Pressable, Text, View, StyleSheet, Image, ImageStyle, TextStyle } from 'react-native';
 
 interface FeatureButtonProps {
   icon: string | number; // `number` type for image sources (e.g., require('./path'))
@@ -7,12 +7,22 @@ interface FeatureButtonProps {
   onPress: () => void;
   color: string;
   size?: 'small' | 'medium' | 'large'; // Add size prop
+  textColor?: string; // Optional label color (defaults to white)
+  iconTintColor?: string; // Optional tint for mono glyph icons only (strings)
 }
 
-export default function FeatureButton({ icon, title, onPress, color, size = 'medium' }: FeatureButtonProps) {
+export default function FeatureButton({ icon, title, onPress, color, size = 'medium', textColor = '#FFFFFF', iconTintColor = '#FFFFFF' }: FeatureButtonProps) {
   const buttonSize = size === 'small' ? 70 : size === 'large' ? 110 : 90;
   const iconSize = size === 'small' ? 25 : size === 'large' ? 60 : 40;
   const titleSize = size === 'small' ? 11 : size === 'large' ? 16 : 14;
+
+  const titleStyle: TextStyle = { fontSize: titleSize, color: textColor };
+  const monoIconStyle: TextStyle = { fontSize: iconSize, color: iconTintColor };
+  // Keep image icons as-is (no tint) to preserve original colors
+  const imageIconStyle: ImageStyle = { width: iconSize, height: iconSize };
+
+  // Square container size slightly larger than icon
+  const containerSide = iconSize * 1.6;
 
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [{
@@ -21,14 +31,21 @@ export default function FeatureButton({ icon, title, onPress, color, size = 'med
       width: buttonSize,
       height: buttonSize,
     }, styles.buttonContainer]}>
-      <View style={[styles.iconContainer, { width: iconSize * 1.5, height: iconSize * 1.5, borderRadius: iconSize * 0.75 }]}>
+      <View style={[
+        styles.iconContainer,
+        {
+          width: containerSide,
+          height: containerSide,
+          borderRadius: 10, // small curved square
+        }
+      ]}>
         {typeof icon === 'string' ? (
-          <Text style={[styles.icon, { fontSize: iconSize, color: '#333' }]}>{icon}</Text>
+          <Text style={[styles.icon, monoIconStyle]}>{icon}</Text>
         ) : (
-          <Image source={icon} style={[styles.imageIcon, { width: iconSize, height: iconSize }]} />
+          <Image source={icon} style={[styles.imageIcon, imageIconStyle]} />
         )}
       </View>
-      <Text style={[styles.title, { fontSize: titleSize, color: '#333' }]}>{title}</Text>
+      <Text style={[styles.title, titleStyle]}>{title}</Text>
     </Pressable>
   );
 }
@@ -48,7 +65,9 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   iconContainer: {
-    backgroundColor: 'rgba(255,255,255,0.5)',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.08)',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 10,

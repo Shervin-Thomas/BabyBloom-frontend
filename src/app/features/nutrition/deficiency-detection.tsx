@@ -451,7 +451,7 @@ export default function DeficiencyDetectionScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F0F2F5',
+    backgroundColor: 'transparent',
   },
   customHeader: {
     backgroundColor: '#FC7596', // Or any gradient color matching your app's theme
