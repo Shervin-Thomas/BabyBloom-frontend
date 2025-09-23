@@ -16,13 +16,16 @@ export default function FeatureButton({ icon, title, onPress, color, size = 'med
   const iconSize = size === 'small' ? 25 : size === 'large' ? 60 : 40;
   const titleSize = size === 'small' ? 11 : size === 'large' ? 16 : 14;
 
-  const titleStyle: TextStyle = { fontSize: titleSize, color: textColor };
+  const titleStyle: TextStyle = { fontSize: titleSize, color: textColor, textAlign: 'center', width: '100%', alignSelf: 'center' };
   const monoIconStyle: TextStyle = { fontSize: iconSize, color: iconTintColor };
   // Keep image icons as-is (no tint) to preserve original colors
   const imageIconStyle: ImageStyle = { width: iconSize, height: iconSize };
 
   // Square container size slightly larger than icon
   const containerSide = iconSize * 1.6;
+
+  // Force two-line labels for multi-word titles by inserting a line break at the first space
+  const displayTitle = title.includes(' ') ? title.replace(' ', '\n') : title;
 
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [{
@@ -36,7 +39,7 @@ export default function FeatureButton({ icon, title, onPress, color, size = 'med
         {
           width: containerSide,
           height: containerSide,
-          borderRadius: 10, // small curved square
+          borderRadius: 10,
         }
       ]}>
         {typeof icon === 'string' ? (
@@ -45,7 +48,7 @@ export default function FeatureButton({ icon, title, onPress, color, size = 'med
           <Image source={icon} style={[styles.imageIcon, imageIconStyle]} />
         )}
       </View>
-      <Text style={[styles.title, titleStyle]}>{title}</Text>
+      <Text style={[styles.title, titleStyle]} numberOfLines={2} ellipsizeMode="tail">{displayTitle}</Text>
     </Pressable>
   );
 }
@@ -54,7 +57,7 @@ const styles = StyleSheet.create({
   buttonContainer: {
     aspectRatio: 1,
     borderRadius: 15,
-    justifyContent: 'center',
+    justifyContent: 'space-evenly',
     alignItems: 'center',
     marginVertical: 10,
     marginHorizontal: 10,
@@ -63,6 +66,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+    paddingVertical: 8,
   },
   iconContainer: {
     backgroundColor: '#FFFFFF',

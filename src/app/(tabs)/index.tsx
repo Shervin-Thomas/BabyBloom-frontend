@@ -15,6 +15,9 @@ export default function TabOneScreen() {
 
   const features = [
     { id: '1', icon: require('../../../assets/images/nutrition_icon.png'), title: 'Nutrition', color: '#FC7596', action: () => router.push('/features/nutrition'), size: 'large' },
+    { id: '2', icon: require('../../../assets/images/baby-growth.png'), title: 'Baby Growth', color: '#6EC6FF', action: () => router.push('/features/baby-growth'), size: 'large' },
+    { id: '3', icon: require('../../../assets/images/mood-companion.png'), title: 'Mood Companion', color: '#A78BFA', action: () => router.push('/features/mood-companion'), size: 'large' },
+    { id: '4', icon: require('../../../assets/images/sleep-analyzer.png'), title: 'Sleep Analyzer', color: '#34D399', action: () => router.push('/features/sleep-analyzer'), size: 'large' },
     // Add more features here following the theme and style of the app
   ];
 

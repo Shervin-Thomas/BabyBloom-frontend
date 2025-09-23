@@ -65,7 +65,13 @@ function RootLayoutNav() {
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <Stack screenOptions={{ headerShown: false }}>
         {isLoggedIn ? (
-          <Stack.Screen name="(tabs)" />
+          <>
+            <Stack.Screen name="(tabs)" />
+            {/* Feature screens opened from Home buttons (hidden from tab bar) */}
+            <Stack.Screen name="features/baby-growth/index" />
+            <Stack.Screen name="features/mood-companion/index" />
+            <Stack.Screen name="features/sleep-analyzer/index" />
+          </>
         ) : (
           <>
             <Stack.Screen name="login" />

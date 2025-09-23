@@ -1,7 +1,8 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ImageBackground } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFonts } from 'expo-font';
 import { useRouter } from 'expo-router';
+import GradientHeader from '@/components/GradientHeader';
 
 export default function DoseReminderScreen() {
   const [loaded] = useFonts({
@@ -15,14 +16,16 @@ export default function DoseReminderScreen() {
   }
 
   return (
-    <View style={styles.container}>
-      <View style={styles.customHeader}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="white" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Dose Reminder</Text>
-        <Text style={styles.headerSubtitle}>Never Miss a Dose</Text>
-      </View>
+    <ImageBackground 
+      source={require('../../../../assets/images/bg8.jpg')} 
+      style={styles.container}
+      resizeMode="cover"
+    >
+      <GradientHeader 
+        title="Dose Reminder"
+        showBackButton
+        onBackPress={() => router.back()}
+      />
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Personalized Supplement Schedules</Text>
@@ -52,7 +55,7 @@ export default function DoseReminderScreen() {
           </Text>
         </View>
       </ScrollView>
-    </View>
+    </ImageBackground>
   );
 }
 
@@ -60,35 +63,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: 'transparent',
-  },
-  customHeader: {
-    backgroundColor: '#FC7596', // Or any gradient color matching your app's theme
-    paddingTop: 50,
-    paddingBottom: 20,
-    paddingHorizontal: 15,
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
-    alignItems: 'center',
-    position: 'relative',
-  },
-  backButton: {
-    position: 'absolute',
-    top: 50,
-    left: 15,
-    zIndex: 1,
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontFamily: 'Pacifico-Regular', // Use your custom font
-    color: 'white',
-    marginBottom: 5,
-    textAlign: 'center',
-  },
-  headerSubtitle: {
-    fontSize: 16,
-    color: 'white',
-    opacity: 0.8,
-    textAlign: 'center',
   },
   scrollContainer: {
     padding: 20,
