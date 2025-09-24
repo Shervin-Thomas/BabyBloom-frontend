@@ -9,8 +9,6 @@ import { Session } from '@supabase/supabase-js';
 import LoginForm from '@components/login';
 import RegisterForm from '@components/register';
 import GradientHeader from '@/components/GradientHeader';
-import * as FileSystem from 'expo-file-system';
-import * as Sharing from 'expo-sharing';
 
 interface MealItem {
   day: string;
@@ -51,6 +49,15 @@ interface UserNutritionLog {
   created_at: string;
 }
 
+interface UserBabyGrowthLog {
+  id: string;
+  user_id: string;
+  weight_kg: number;
+  height_cm: number;
+  head_cm: number;
+  created_at: string;
+}
+
 export default function ProfileTab() {
   const [session, setSession] = useState<Session | null>(null);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
@@ -72,6 +79,10 @@ export default function ProfileTab() {
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
   const [showAllPosts, setShowAllPosts] = useState(false); // New state for showing all posts
   const [showAllNutritionLogs, setShowAllNutritionLogs] = useState(false); // New state for showing all nutrition logs
+  const [babyGrowthLogs, setBabyGrowthLogs] = useState<UserBabyGrowthLog[]>([]);
+  const [loadingBabyGrowthLogs, setLoadingBabyGrowthLogs] = useState(false);
+  const [expandedBabyGrowthLogId, setExpandedBabyGrowthLogId] = useState<string | null>(null);
+  const [showAllBabyGrowthLogs, setShowAllBabyGrowthLogs] = useState(false);
 
   useEffect(() => {
     const loadSession = async () => {
@@ -84,6 +95,7 @@ export default function ProfileTab() {
         await loadUserPosts(session.user.id);
         await loadUserDietPlans(session.user.id);
         await loadUserNutritionLogs(session.user.id);
+        await loadUserBabyGrowthLogs(session.user.id);
         setLoading(false);
       } else {
         setLoading(false);
@@ -108,6 +120,7 @@ export default function ProfileTab() {
           await loadUserPosts(session.user.id);
           await loadUserDietPlans(session.user.id);
           await loadUserNutritionLogs(session.user.id);
+          await loadUserBabyGrowthLogs(session.user.id);
           setLoading(false);
         } else {
           console.log('Session user exists but no email, setting auth mode to login.');
@@ -115,6 +128,7 @@ export default function ProfileTab() {
           setPosts([]);
           setDietPlans([]);
           setNutritionLogs([]);
+          setBabyGrowthLogs([]);
           setAuthMode('login');
           setLoading(false);
         }
@@ -124,6 +138,7 @@ export default function ProfileTab() {
         setPosts([]);
         setDietPlans([]);
         setNutritionLogs([]);
+        setBabyGrowthLogs([]);
         setAuthMode('login');
         setLoading(false);
       }
@@ -143,6 +158,7 @@ export default function ProfileTab() {
           await loadUserPosts(session.user.id);
           await loadUserDietPlans(session.user.id); // Also refresh diet plans
           await loadUserNutritionLogs(session.user.id); // Also refresh nutrition logs
+          await loadUserBabyGrowthLogs(session.user.id); // Also refresh baby growth logs
         }
       };
 
@@ -281,8 +297,34 @@ export default function ProfileTab() {
     setLoadingNutritionLogs(false);
   };
 
+  const loadUserBabyGrowthLogs = async (userId: string) => {
+    setLoadingBabyGrowthLogs(true);
+    try {
+      const { data, error } = await supabase
+        .from('baby_growth_logs')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching user baby growth logs:', error);
+        Alert.alert('Error', 'Failed to load baby growth logs.');
+      } else {
+        setBabyGrowthLogs(data || []);
+      }
+    } catch (error) {
+      console.error('Unexpected error loading baby growth logs:', error);
+      Alert.alert('Error', 'An unexpected error occurred while loading baby growth logs.');
+    }
+    setLoadingBabyGrowthLogs(false);
+  };
+
   const toggleLogExpansion = (logId: string) => {
     setExpandedLogId(prevId => (prevId === logId ? null : logId));
+  };
+
+  const toggleBabyGrowthLogExpansion = (logId: string) => {
+    setExpandedBabyGrowthLogId(prevId => (prevId === logId ? null : logId));
   };
 
   const handleSignOut = async () => {
@@ -509,88 +551,7 @@ export default function ProfileTab() {
   };
 
 
-  const handleDownloadPdf = async () => {
-    if (nutritionLogs.length === 0) {
-      Alert.alert('No Logs', 'There are no nutrition logs to generate a report.');
-      return;
-    }
 
-    try {
-      Alert.alert('Generating Report', 'Please wait while we create your nutrition report...');
-      
-      // Create a simple text-based report
-      let reportContent = '🌸 BabyBloom Nutrition Log Report\n';
-      reportContent += `Generated on: ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}\n\n`;
-      
-      nutritionLogs.forEach((log, index) => {
-        reportContent += `=== Log Entry ${index + 1} ===\n`;
-        reportContent += `Date: ${new Date(log.log_date).toLocaleDateString()}\n`;
-        
-        if (log.symptoms && log.symptoms.length > 0) {
-          reportContent += `🩺 Symptoms: ${log.symptoms.join(', ')}\n`;
-        }
-        
-        if (log.custom_symptom) {
-          reportContent += `📝 Additional Symptom: ${log.custom_symptom}\n`;
-        }
-        
-        if (log.meal_input) {
-          reportContent += `🍽️ Dietary Intake: ${log.meal_input}\n`;
-        }
-        
-        if (log.symptom_results?.deficiencies && log.symptom_results.deficiencies.length > 0) {
-          reportContent += `🔍 Symptom-Based Detection:\n`;
-          reportContent += `  Deficiencies: ${log.symptom_results.deficiencies.join(', ')}\n`;
-          reportContent += `  Recommendations: ${log.symptom_results.recommendations}\n`;
-        }
-        
-        if (log.diet_results?.deficiencies && log.diet_results.deficiencies.length > 0) {
-          reportContent += `🥗 Dietary Intake Analysis:\n`;
-          reportContent += `  Deficiencies: ${log.diet_results.deficiencies.join(', ')}\n`;
-          reportContent += `  Recommendations: ${log.diet_results.recommendations}\n`;
-        }
-        
-        if (log.daily_nutrient_intake && Object.keys(log.daily_nutrient_intake).length > 0) {
-          reportContent += `📈 Daily Nutrient Intake:\n`;
-          Object.entries(log.daily_nutrient_intake).forEach(([nutrient, amount]) => {
-            reportContent += `  ${nutrient}: ${amount}\n`;
-          });
-        }
-        
-        reportContent += `📅 Logged at: ${new Date(log.created_at).toLocaleString()}\n\n`;
-      });
-      
-      // Save as text file
-      const fileName = `BabyBloom_Nutrition_Report_${new Date().toISOString().split('T')[0]}.txt`;
-      const fileUri = FileSystem.documentDirectory + fileName;
-      
-      await FileSystem.writeAsStringAsync(fileUri, reportContent, {
-        encoding: FileSystem.EncodingType.UTF8,
-      });
-      
-      // Show success message
-      Alert.alert(
-        '🎉 Report Generated Successfully!',
-        `Your nutrition report has been saved to your device.\n\nFile: ${fileName}`,
-        [
-          {
-            text: 'View Report',
-            onPress: () => {
-              Alert.alert('Nutrition Report', reportContent, [{ text: 'Close' }]);
-            }
-          },
-          {
-            text: 'OK',
-            style: 'default'
-          }
-        ]
-      );
-
-    } catch (error) {
-      console.error('Error generating report:', error);
-      Alert.alert('Error', 'Failed to generate report. Please try again.');
-    }
-  };
 
   // Show login/register forms if not authenticated
   if (!session || !session.user?.email) {
@@ -651,13 +612,14 @@ export default function ProfileTab() {
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
-            refreshing={loading || loadingDietPlans || loadingNutritionLogs} // Add nutrition logs loading to refresh state
+            refreshing={loading || loadingDietPlans || loadingNutritionLogs || loadingBabyGrowthLogs} // Add baby growth logs loading to refresh state
             onRefresh={async () => {
               if (session?.user?.id) {
                 await loadProfile(session.user.id);
                 await loadUserPosts(session.user.id);
                 await loadUserDietPlans(session.user.id);
                 await loadUserNutritionLogs(session.user.id);
+                await loadUserBabyGrowthLogs(session.user.id);
               }
             }}
             colors={['#FC7596']}
@@ -933,13 +895,6 @@ export default function ProfileTab() {
               </Text>
             </TouchableOpacity>
 
-            {/* Button to download PDF report */}
-            <TouchableOpacity
-              style={styles.nutritionLogActionButton}
-              onPress={() => handleDownloadPdf()}
-            >
-              <Text style={styles.nutritionLogActionButtonText}>Download PDF Report</Text>
-            </TouchableOpacity>
           </View>
 
           {showAllNutritionLogs && (
@@ -993,6 +948,55 @@ export default function ProfileTab() {
                             ))}
                           </View>
                         )}
+                        <Text style={styles.logTimestamp}>Logged at: {new Date(log.created_at).toLocaleString()}</Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })
+            )
+          )}
+        </View>
+
+        {/* My Baby Growth Logs Section */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>My Baby Growth Logs</Text>
+          <View style={styles.nutritionLogButtonsContainer}>
+            {/* Button to view all logs */}
+            <TouchableOpacity
+              style={styles.nutritionLogActionButton}
+              onPress={() => setShowAllBabyGrowthLogs(prev => !prev)}
+            >
+              <Text style={styles.nutritionLogActionButtonText}>
+                {showAllBabyGrowthLogs ? 'Hide Logs' : 'View All Logs'}
+              </Text>
+            </TouchableOpacity>
+
+          </View>
+
+          {showAllBabyGrowthLogs && (
+            loadingBabyGrowthLogs ? (
+              <ActivityIndicator size="small" color="#FC7596" style={{ marginTop: 20 }} />
+            ) : babyGrowthLogs.length === 0 ? (
+              <Text style={styles.noNutritionLogsText}>No baby growth logs recorded yet. Go to Baby Growth &gt; Growth Logs to log your baby's measurements!</Text>
+            ) : (
+              babyGrowthLogs.map(log => {
+                const isExpanded = expandedBabyGrowthLogId === log.id;
+                return (
+                  <TouchableOpacity key={log.id} style={styles.nutritionLogCard} onPress={() => toggleBabyGrowthLogExpansion(log.id)}>
+                    <View style={styles.nutritionLogHeader}>
+                      <Text style={styles.nutritionLogTitle}>Growth Log - {new Date(log.created_at).toLocaleDateString()}</Text>
+                      <Ionicons
+                        name={isExpanded ? "chevron-up-outline" : "chevron-down-outline"}
+                        size={20}
+                        color="#6c757d"
+                      />
+                    </View>
+                    {isExpanded && (
+                      <View style={styles.nutritionLogDetails}>
+                        <Text style={styles.logDetailText}>Weight: {log.weight_kg} kg</Text>
+                        <Text style={styles.logDetailText}>Height: {log.height_cm} cm</Text>
+                        <Text style={styles.logDetailText}>Head Circumference: {log.head_cm} cm</Text>
                         <Text style={styles.logTimestamp}>Logged at: {new Date(log.created_at).toLocaleString()}</Text>
                       </View>
                     )}
