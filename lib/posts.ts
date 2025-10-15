@@ -54,15 +54,21 @@ export const postsService = {
       console.log('✅ NEW POSTS SERVICE - Posts fetched successfully:', posts?.length || 0, 'posts');
       console.log('Posts data:', posts);
 
-      if (!posts) return [];
+      if (!posts || posts.length === 0) return [];
 
       // Fetch user profiles for all posts
       const userIds = [...new Set(posts.map(post => post.user_id))];
       console.log('User IDs for posts:', userIds);
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('id, full_name, email')
-        .in('id', userIds);
+      let profiles: any[] | null = null;
+      if (userIds.length > 0) {
+        const { data: profilesData } = await supabase
+          .from('profiles')
+          .select('id, full_name, email')
+          .in('id', userIds);
+        profiles = profilesData || [];
+      } else {
+        profiles = [];
+      }
 
       // Create a map of user profiles
       const profileMap = new Map();
@@ -74,13 +80,15 @@ export const postsService = {
       // Check which posts the current user has liked (if user is provided)
       let likedPostIds = new Set();
       if (currentUserId) {
-        const { data: likes } = await supabase
-          .from('likes')
-          .select('post_id')
-          .eq('user_id', currentUserId)
-          .in('post_id', posts.map(post => post.id));
-
-        likedPostIds = new Set(likes?.map(like => like.post_id) || []);
+        const postIds = posts.map(post => post.id);
+        if (postIds.length > 0) {
+          const { data: likes } = await supabase
+            .from('likes')
+            .select('post_id')
+            .eq('user_id', currentUserId)
+            .in('post_id', postIds);
+          likedPostIds = new Set(likes?.map(like => like.post_id) || []);
+        }
       }
 
       // Return posts with user profile data and like status

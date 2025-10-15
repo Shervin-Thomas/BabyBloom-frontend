@@ -1,5 +1,6 @@
 import * as AuthSession from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
+import { Platform } from 'react-native';
 import { supabase } from './supabase';
 
 // Complete the authentication flow in the browser
@@ -12,6 +13,11 @@ export const googleAuthService = {
 
       const redirectUri = AuthSession.makeRedirectUri({
         scheme: 'babybloomfrontend',
+        path: 'auth/callback',
+        // Use Expo proxy in development/Expo Go to avoid custom scheme setup issues
+        useProxy: Platform.select({ web: false, default: true }),
+        // Provide explicit native callback for reliability on Android/iOS
+        native: 'babybloomfrontend://auth/callback',
       });
       console.log('📍 Redirect URI:', redirectUri);
 
@@ -20,6 +26,7 @@ export const googleAuthService = {
         provider: 'google',
         options: {
           redirectTo: redirectUri,
+          skipBrowserRedirect: false,
         },
       });
 
@@ -34,26 +41,36 @@ export const googleAuthService = {
       if (data?.url) {
         console.log('🌐 Opening OAuth URL in browser:', data.url);
         try {
-          const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUri);
+          if (Platform.OS === 'web') {
+            // On web, navigate directly so the provider can complete the flow
+            window.location.href = data.url as unknown as string;
+            return { data, error: null };
+          }
+
+          // Native: Warm up and open the auth session
+          try { await WebBrowser.warmUpAsync(); } catch {}
+          const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUri, {
+            showInRecents: true,
+            preferEphemeralSession: Platform.OS === 'ios',
+          });
           console.log('🔄 Browser session result:', result);
           console.log('🔄 Browser session result type:', result.type);
           if (result.type === 'success') {
             console.log('✅ OAuth completed successfully with URL:', result.url);
             // The redirect will be handled by Supabase automatically
-          } else if (result.type === 'cancel') {
-            console.log('❌ OAuth cancelled by user.');
-            throw new Error('Google sign-in cancelled by user.');
-          } else if (result.type === 'dismiss') {
-            console.log('❌ OAuth dismissed by user (e.g., closed browser tab).');
-            throw new Error('Google sign-in dismissed by user.');
+          } else if (result.type === 'cancel' || result.type === 'dismiss') {
+            console.log('❌ OAuth cancelled/dismissed by user.');
+            return { data: null, error: new Error('Google sign-in dismissed by user.') };
           } else {
-            console.log('⚠️ Unexpected browser session result type:', result.type);
+            console.log('⚠️ Unexpected browser session result type:', (result as any)?.type);
             throw new Error('Unexpected error during Google sign-in.');
           }
         } catch (browserError: any) {
           console.error('❌ Browser error:', browserError);
           // More specific error for failing to open the browser
-          throw new Error(`Failed to open browser for authentication: ${browserError.message || browserError}`);
+          throw new Error(`Failed to open browser for authentication: ${browserError?.message || browserError}`);
+        } finally {
+          try { await WebBrowser.coolDownAsync(); } catch {}
         }
       } else {
         console.error('❌ Supabase did not return a URL for OAuth.');

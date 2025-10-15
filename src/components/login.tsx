@@ -27,6 +27,11 @@ export default function Login({ onSwitchToRegister, setLoading }: LoginProps) {
       const { data, error } = await googleAuthService.signInWithGoogle();
       if (error) {
         console.error('❌ Login: Google sign-in failed:', error);
+        const msg = (error.message || '').toLowerCase();
+        if (msg.includes('dismissed by user') || msg.includes('cancel')) {
+          // User closed the browser sheet; don't scare with an error alert
+          return;
+        }
         Alert.alert('Google Sign-In Failed', error.message || 'An error occurred during Google sign-in');
       } else {
         console.log('✅ Login: Google sign-in successful:', data);

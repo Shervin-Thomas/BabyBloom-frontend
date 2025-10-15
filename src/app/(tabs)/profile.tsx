@@ -83,6 +83,11 @@ export default function ProfileTab() {
   const [loadingBabyGrowthLogs, setLoadingBabyGrowthLogs] = useState(false);
   const [expandedBabyGrowthLogId, setExpandedBabyGrowthLogId] = useState<string | null>(null);
   const [showAllBabyGrowthLogs, setShowAllBabyGrowthLogs] = useState(false);
+  const [calorieLogs, setCalorieLogs] = useState<UserNutritionLog[]>([]);
+  const [loadingCalorieLogs, setLoadingCalorieLogs] = useState(false);
+  const [expandedCalorieLogId, setExpandedCalorieLogId] = useState<string | null>(null);
+  const [liveReminders, setLiveReminders] = useState<any[]>([]);
+  const [loadingLiveReminders, setLoadingLiveReminders] = useState(false);
 
   useEffect(() => {
     const loadSession = async () => {
@@ -96,6 +101,8 @@ export default function ProfileTab() {
         await loadUserDietPlans(session.user.id);
         await loadUserNutritionLogs(session.user.id);
         await loadUserBabyGrowthLogs(session.user.id);
+        await loadUserCalorieLogs(session.user.id);
+        await loadLiveDoseReminders(session.user.id);
         setLoading(false);
       } else {
         setLoading(false);
@@ -121,6 +128,8 @@ export default function ProfileTab() {
           await loadUserDietPlans(session.user.id);
           await loadUserNutritionLogs(session.user.id);
           await loadUserBabyGrowthLogs(session.user.id);
+          await loadUserCalorieLogs(session.user.id);
+          await loadLiveDoseReminders(session.user.id);
           setLoading(false);
         } else {
           console.log('Session user exists but no email, setting auth mode to login.');
@@ -139,6 +148,8 @@ export default function ProfileTab() {
         setDietPlans([]);
         setNutritionLogs([]);
         setBabyGrowthLogs([]);
+        setCalorieLogs([]);
+        setLiveReminders([]);
         setAuthMode('login');
         setLoading(false);
       }
@@ -159,6 +170,7 @@ export default function ProfileTab() {
           await loadUserDietPlans(session.user.id); // Also refresh diet plans
           await loadUserNutritionLogs(session.user.id); // Also refresh nutrition logs
           await loadUserBabyGrowthLogs(session.user.id); // Also refresh baby growth logs
+          await loadUserCalorieLogs(session.user.id); // Also refresh calorie logs
         }
       };
 
@@ -317,6 +329,64 @@ export default function ProfileTab() {
       Alert.alert('Error', 'An unexpected error occurred while loading baby growth logs.');
     }
     setLoadingBabyGrowthLogs(false);
+  };
+
+  const loadUserCalorieLogs = async (userId: string) => {
+    setLoadingCalorieLogs(true);
+    try {
+      const { data, error } = await supabase
+        .from('user_nutrition_logs')
+        .select('*')
+        .eq('user_id', userId)
+        .not('daily_nutrient_intake->>type', 'is', null)
+        .eq('daily_nutrient_intake->>type', 'calorie_assessment')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching calorie logs:', error);
+        Alert.alert('Error', 'Failed to load calorie logs.');
+      } else {
+        setCalorieLogs(data || []);
+      }
+    } catch (error) {
+      console.error('Unexpected error loading calorie logs:', error);
+      Alert.alert('Error', 'An unexpected error occurred while loading calorie logs.');
+    }
+    setLoadingCalorieLogs(false);
+  };
+
+  const toggleCalorieLogExpansion = (logId: string) => {
+    setExpandedCalorieLogId(prevId => (prevId === logId ? null : logId));
+  };
+
+  const loadLiveDoseReminders = async (userId: string) => {
+    setLoadingLiveReminders(true);
+    try {
+      const now = new Date();
+      const yyyy = now.getFullYear();
+      const mm = String(now.getMonth() + 1).padStart(2, '0');
+      const dd = String(now.getDate()).padStart(2, '0');
+      const today = `${yyyy}-${mm}-${dd}`; // local date string
+      const { data, error } = await supabase
+        .from('medical_schedules')
+        .select('id, person_type, custom_item_name, category, dosage, start_date, end_date, schedule, status')
+        .eq('user_id', userId)
+        .eq('status', 'active')
+        .lte('start_date', today)
+        .gte('end_date', today)
+        .order('end_date', { ascending: true });
+
+      if (error) {
+        console.error('Error fetching live dose reminders:', error);
+        setLiveReminders([]);
+      } else {
+        setLiveReminders(data || []);
+      }
+    } catch (e) {
+      console.error('Unexpected error loading live dose reminders:', e);
+      setLiveReminders([]);
+    }
+    setLoadingLiveReminders(false);
   };
 
   const toggleLogExpansion = (logId: string) => {
@@ -591,6 +661,36 @@ export default function ProfileTab() {
         <View style={styles.loadingContainer}>
           <Text style={styles.loadingText}>Loading your profile...</Text>
         </View>
+
+        {/* Live Dose Reminders */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Live Dose Reminders</Text>
+          {loadingLiveReminders ? (
+            <ActivityIndicator size="small" color="#FC7596" />
+          ) : liveReminders.length === 0 ? (
+            <Text style={styles.noNutritionLogsText}>No live reminders right now.</Text>
+          ) : (
+            liveReminders.map((r: any) => {
+              const sc = r.schedule || {};
+              const times = Array.isArray(sc.timesOfDay) && sc.timesOfDay.length ? sc.timesOfDay.join(', ') : '—';
+              const withFood = sc.withFood ? `${sc.withFood}${sc.foodOffsetMinutes ? ` (${sc.foodOffsetMinutes} min)` : ''}` : '—';
+              return (
+                <View key={r.id} style={styles.nutritionLogCard}>
+                  <View style={styles.nutritionLogHeader}>
+                    <Text style={styles.nutritionLogTitle}>{r.custom_item_name} <Text style={{ color: '#6c757d' }}>({r.dosage})</Text></Text>
+                  </View>
+                  <View style={styles.nutritionLogDetails}>
+                    <Text style={styles.logDetailText}>Person: {r.person_type}</Text>
+                    <Text style={styles.logDetailText}>Type: {r.category}</Text>
+                    <Text style={styles.logDetailText}>Window: {times}</Text>
+                    <Text style={styles.logDetailText}>With food: {withFood}</Text>
+                    <Text style={styles.logDetailText}>Period: {r.start_date} → {r.end_date}</Text>
+                  </View>
+                </View>
+              );
+            })
+          )}
+        </View>
       </ImageBackground>
     );
   }
@@ -612,7 +712,7 @@ export default function ProfileTab() {
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
-            refreshing={loading || loadingDietPlans || loadingNutritionLogs || loadingBabyGrowthLogs} // Add baby growth logs loading to refresh state
+            refreshing={loading || loadingDietPlans || loadingNutritionLogs || loadingBabyGrowthLogs || loadingCalorieLogs || loadingLiveReminders}
             onRefresh={async () => {
               if (session?.user?.id) {
                 await loadProfile(session.user.id);
@@ -620,6 +720,8 @@ export default function ProfileTab() {
                 await loadUserDietPlans(session.user.id);
                 await loadUserNutritionLogs(session.user.id);
                 await loadUserBabyGrowthLogs(session.user.id);
+                await loadUserCalorieLogs(session.user.id);
+                await loadLiveDoseReminders(session.user.id);
               }
             }}
             colors={['#FC7596']}
@@ -997,6 +1099,73 @@ export default function ProfileTab() {
                         <Text style={styles.logDetailText}>Weight: {log.weight_kg} kg</Text>
                         <Text style={styles.logDetailText}>Height: {log.height_cm} cm</Text>
                         <Text style={styles.logDetailText}>Head Circumference: {log.head_cm} cm</Text>
+                        <Text style={styles.logTimestamp}>Logged at: {new Date(log.created_at).toLocaleString()}</Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })
+            )
+          )}
+        </View>
+
+        {/* My Calorie Tracker Logs Section */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>My Calorie Tracker Logs</Text>
+          <View style={styles.nutritionLogButtonsContainer}>
+            <TouchableOpacity
+              style={styles.nutritionLogActionButton}
+              onPress={() => setExpandedCalorieLogId(prev => prev === 'all' ? null : 'all')}
+            >
+              <Text style={styles.nutritionLogActionButtonText}>
+                {expandedCalorieLogId === 'all' ? 'Hide Logs' : 'View All Logs'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {expandedCalorieLogId === 'all' && (
+            loadingCalorieLogs ? (
+              <ActivityIndicator size="small" color="#FC7596" style={{ marginTop: 20 }} />
+            ) : calorieLogs.length === 0 ? (
+              <Text style={styles.noNutritionLogsText}>No calorie tracker logs yet. Go to Nutrition &gt; Calorie Tracker to create one!</Text>
+            ) : (
+              calorieLogs.map(log => {
+                const isExpanded = expandedCalorieLogId === log.id;
+                const di = (log as any).daily_nutrient_intake || {};
+                return (
+                  <TouchableOpacity key={log.id} style={styles.nutritionLogCard} onPress={() => toggleCalorieLogExpansion(log.id)}>
+                    <View style={styles.nutritionLogHeader}>
+                      <Text style={styles.nutritionLogTitle}>Assessment - {new Date(log.created_at).toLocaleDateString()}</Text>
+                      <Ionicons
+                        name={isExpanded ? "chevron-up-outline" : "chevron-down-outline"}
+                        size={20}
+                        color="#6c757d"
+                      />
+                    </View>
+                    {isExpanded && (
+                      <View style={styles.nutritionLogDetails}>
+                        <Text style={styles.logDetailText}>Goal: {di.goal || '—'}</Text>
+                        <Text style={styles.logDetailText}>Age: {di.age ?? '—'} years</Text>
+                        <Text style={styles.logDetailText}>Height: {di.height_cm ?? '—'} cm</Text>
+                        <Text style={styles.logDetailText}>Weight: {di.weight_kg ?? '—'} kg</Text>
+                        <Text style={styles.logDetailText}>Activity: {di.activity || '—'}</Text>
+                        <Text style={styles.logDetailText}>Metabolism: {di.metabolism || '—'}</Text>
+                        <View style={styles.resultBlock}>
+                          <Text style={styles.resultTitle}>Calculated:</Text>
+                          <Text style={styles.resultText}>BMR: {di.bmr ?? '—'} kcal</Text>
+                          <Text style={styles.resultText}>TDEE: {di.tdee ?? '—'} kcal</Text>
+                          <Text style={styles.resultText}>Target: {di.target_calories ?? '—'} kcal</Text>
+                          <Text style={styles.resultText}>Logged Intake: {di.logged_intake ?? '—'} kcal</Text>
+                          <Text style={styles.resultText}>Net: {di.net ?? '—'} kcal</Text>
+                        </View>
+                        {Array.isArray(di.foods) && di.foods.length > 0 && (
+                          <View style={styles.resultBlock}>
+                            <Text style={styles.resultTitle}>Foods:</Text>
+                            {di.foods.map((f: any, i: number) => (
+                              <Text key={i} style={styles.resultText}>• {f.name}: {f.calories} kcal</Text>
+                            ))}
+                          </View>
+                        )}
                         <Text style={styles.logTimestamp}>Logged at: {new Date(log.created_at).toLocaleString()}</Text>
                       </View>
                     )}

@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, ImageBackground, TextInput, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ImageBackground, TextInput, TouchableOpacity, ActivityIndicator, Alert, Switch } from 'react-native';
 import { useFonts } from 'expo-font';
 import GradientHeader from '@/components/GradientHeader';
 import { useRouter } from 'expo-router';
@@ -15,6 +15,9 @@ export default function GrowthLogsScreen() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [filterStart, setFilterStart] = useState('');
+  const [filterEnd, setFilterEnd] = useState('');
+  const [last24Hours, setLast24Hours] = useState(false);
   if (!loaded) return null;
 
   useEffect(() => {
@@ -49,11 +52,30 @@ export default function GrowthLogsScreen() {
   const fetchLogs = async (userId: string) => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      let query = supabase
         .from('baby_growth_logs')
         .select('id, created_at, weight_kg, height_cm, head_cm')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false });
+        .eq('user_id', userId);
+
+      if (last24Hours) {
+        const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+        query = query.gte('created_at', since);
+      } else {
+        if (filterStart) {
+          const startIso = new Date(filterStart).toISOString();
+          if (!isNaN(new Date(filterStart).getTime())) {
+            query = query.gte('created_at', startIso);
+          }
+        }
+        if (filterEnd) {
+          const endIso = new Date(filterEnd).toISOString();
+          if (!isNaN(new Date(filterEnd).getTime())) {
+            query = query.lte('created_at', endIso);
+          }
+        }
+      }
+
+      const { data, error } = await query.order('created_at', { ascending: false });
       if (error) throw error;
       const mapped = (data || []).map((row: any) => ({
         id: row.id,
@@ -68,6 +90,18 @@ export default function GrowthLogsScreen() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const applyFilters = () => {
+    if (!currentUserId) return;
+    fetchLogs(currentUserId);
+  };
+
+  const clearFilters = () => {
+    setFilterStart('');
+    setFilterEnd('');
+    setLast24Hours(false);
+    if (currentUserId) fetchLogs(currentUserId);
   };
 
   const addLog = async () => {
@@ -120,6 +154,30 @@ export default function GrowthLogsScreen() {
 
         <View style={[styles.card, { marginTop: 16 }]}>
           <Text style={styles.title}>Recent logs</Text>
+          <View style={styles.filtersSection}>
+            <Text style={styles.filterLabel}>Start (YYYY-MM-DD or YYYY-MM-DD HH:mm)</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="e.g. 2025-10-01 08:00"
+              value={filterStart}
+              onChangeText={setFilterStart}
+            />
+            <Text style={[styles.filterLabel, { marginTop: 8 }]}>End (YYYY-MM-DD or YYYY-MM-DD HH:mm)</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="e.g. 2025-10-15 20:00"
+              value={filterEnd}
+              onChangeText={setFilterEnd}
+            />
+            <View style={styles.switchRow}>
+              <Text style={styles.filterLabel}>Last 24 hours</Text>
+              <Switch value={last24Hours} onValueChange={(val) => { setLast24Hours(val); }} />
+            </View>
+            <View style={styles.filterButtonsRow}>
+              <TouchableOpacity style={styles.secondaryBtn} onPress={clearFilters}><Text style={styles.secondaryBtnText}>Clear</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.primaryBtn} onPress={applyFilters}><Text style={styles.primaryBtnText}>Apply</Text></TouchableOpacity>
+            </View>
+          </View>
           {loading ? (
             <ActivityIndicator color="#FC7596" />
           ) : logs.length === 0 ? (
@@ -149,9 +207,15 @@ const styles = StyleSheet.create({
   input: { flex: 1, borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: '#F9FAFB' },
   primaryBtn: { marginTop: 12, backgroundColor: '#FC7596', borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
   primaryBtnText: { color: 'white', fontWeight: 'bold' },
+  secondaryBtn: { marginTop: 12, backgroundColor: '#E5E7EB', borderRadius: 10, paddingVertical: 12, alignItems: 'center', flex: 1 },
+  secondaryBtnText: { color: '#374151', fontWeight: 'bold' },
   logRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#EEE' },
   logDate: { color: '#6B7280' },
   logVal: { fontWeight: '600', color: '#374151' },
+  filtersSection: { marginBottom: 8 },
+  filterLabel: { color: '#6B7280', marginBottom: 4 },
+  switchRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 },
+  filterButtonsRow: { flexDirection: 'row', gap: 8 },
 });
 
 

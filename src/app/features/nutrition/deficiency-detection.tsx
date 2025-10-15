@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, ActivityIndicator, ImageBackground } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, ActivityIndicator, ImageBackground, Switch } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFonts } from 'expo-font';
 import { useState, useEffect } from 'react';
@@ -69,6 +69,9 @@ export default function DeficiencyDetectionScreen() {
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [filterStart, setFilterStart] = useState('');
+  const [filterEnd, setFilterEnd] = useState('');
+  const [last24Hours, setLast24Hours] = useState(false);
 
   useEffect(() => {
     const checkAuthAndLoadLogs = async () => {
@@ -105,18 +108,49 @@ export default function DeficiencyDetectionScreen() {
 
   const fetchHistoricalLogs = async (userId: string) => {
     setLoadingHistory(true);
-    const { data, error } = await supabase
+    let query = supabase
       .from('user_nutrition_logs')
       .select('*')
-      .eq('user_id', userId)
-      .order('log_date', { ascending: false });
+      .eq('user_id', userId);
+
+    if (last24Hours) {
+      const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      query = query.gte('log_date', since);
+    } else {
+      if (filterStart) {
+        const startIso = new Date(filterStart).toISOString();
+        if (!isNaN(new Date(filterStart).getTime())) {
+          query = query.gte('log_date', startIso);
+        }
+      }
+      if (filterEnd) {
+        const endIso = new Date(filterEnd).toISOString();
+        if (!isNaN(new Date(filterEnd).getTime())) {
+          query = query.lte('log_date', endIso);
+        }
+      }
+    }
+
+    const { data, error } = await query.order('log_date', { ascending: false });
 
     if (error) {
       console.error('Error fetching historical logs:', error);
     } else {
-      setHistoricalLogs(data);
+      setHistoricalLogs(data as any[]);
     }
     setLoadingHistory(false);
+  };
+
+  const applyFilters = () => {
+    if (!currentUserId) return;
+    fetchHistoricalLogs(currentUserId);
+  };
+
+  const clearFilters = () => {
+    setFilterStart('');
+    setFilterEnd('');
+    setLast24Hours(false);
+    if (currentUserId) fetchHistoricalLogs(currentUserId);
   };
 
   if (!loaded) {
@@ -402,6 +436,34 @@ export default function DeficiencyDetectionScreen() {
             <Text style={styles.logButtonText}>Log Today's Results</Text>
           </TouchableOpacity>
 
+          {/* Filters */}
+          <View style={styles.filtersSection}>
+            <Text style={styles.filterLabel}>Start (YYYY-MM-DD or YYYY-MM-DD HH:mm)</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="e.g. 2025-10-01 08:00"
+              value={filterStart}
+              onChangeText={setFilterStart}
+              editable={isAuthenticated}
+            />
+            <Text style={[styles.filterLabel, { marginTop: 8 }]}>End (YYYY-MM-DD or YYYY-MM-DD HH:mm)</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="e.g. 2025-10-15 20:00"
+              value={filterEnd}
+              onChangeText={setFilterEnd}
+              editable={isAuthenticated}
+            />
+            <View style={styles.switchRow}>
+              <Text style={styles.filterLabel}>Last 24 hours</Text>
+              <Switch value={last24Hours} onValueChange={(val) => { setLast24Hours(val); }} disabled={!isAuthenticated} />
+            </View>
+            <View style={styles.filterButtonsRow}>
+              <TouchableOpacity style={styles.secondaryBtn} onPress={clearFilters} disabled={!isAuthenticated}><Text style={styles.secondaryBtnText}>Clear</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.detectButton} onPress={applyFilters} disabled={!isAuthenticated}><Text style={styles.detectButtonText}>Apply Filters</Text></TouchableOpacity>
+            </View>
+          </View>
+
           {loadingHistory ? (
             <ActivityIndicator style={{ marginTop: 20 }} size="large" color="#FC7596" />
           ) : (
@@ -553,6 +615,37 @@ const styles = StyleSheet.create({
   },
   logButtonText: {
     color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  filtersSection: {
+    marginTop: 12,
+  },
+  filterLabel: {
+    color: '#6B7280',
+    marginBottom: 4,
+  },
+  switchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 8,
+  },
+  filterButtonsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  secondaryBtn: {
+    backgroundColor: '#E5E7EB',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 10,
+    flex: 1,
+  },
+  secondaryBtnText: {
+    color: '#374151',
     fontSize: 16,
     fontWeight: 'bold',
   },
