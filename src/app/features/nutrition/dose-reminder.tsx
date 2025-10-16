@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from 'lib/supabase';
 import { Picker } from '@react-native-picker/picker';
 import Checkbox from 'expo-checkbox';
+import NotificationService from '../../../services/notificationService';
 
 export default function DoseReminderScreen() {
   const [loaded] = useFonts({
@@ -171,6 +172,28 @@ export default function DoseReminderScreen() {
       if (error) throw error;
       const mapped = { id: data.id, name: data.custom_item_name, dosage: data.dosage, schedule: data.schedule, category: data.category, notes: data.notes, created_at: data.created_at };
       setReminders(prev => [mapped as any, ...prev]);
+      
+      // Schedule notifications for the new reminder
+      try {
+        const notificationService = NotificationService.getInstance();
+        const reminders = notificationService.createMedicationReminders(
+          data.custom_item_name,
+          data.dosage,
+          data.schedule,
+          sdStr,
+          edStr,
+          activeTab
+        );
+        
+        if (reminders.length > 0) {
+          await notificationService.scheduleMultipleReminders(reminders);
+          console.log(`Scheduled ${reminders.length} notifications for ${data.custom_item_name}`);
+        }
+      } catch (notificationError) {
+        console.error('Error scheduling notifications:', notificationError);
+        // Don't show error to user as the reminder was created successfully
+      }
+      
       setName(''); setDosage(''); setDosageQty(''); setTimesText(''); setDaysText(''); setNotes('');
     } catch (e: any) {
       console.error('Failed to add reminder:', e?.message || e);

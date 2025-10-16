@@ -88,6 +88,13 @@ export default function ProfileTab() {
   const [expandedCalorieLogId, setExpandedCalorieLogId] = useState<string | null>(null);
   const [liveReminders, setLiveReminders] = useState<any[]>([]);
   const [loadingLiveReminders, setLoadingLiveReminders] = useState(false);
+  const [expandedReminderId, setExpandedReminderId] = useState<string | null>(null);
+  
+  // Notification settings state
+  const [showNotificationSettings, setShowNotificationSettings] = useState(false);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [notificationTimeBefore, setNotificationTimeBefore] = useState(5); // minutes
+  const [notificationManager, setNotificationManager] = useState<any>(null);
 
   useEffect(() => {
     const loadSession = async () => {
@@ -357,6 +364,10 @@ export default function ProfileTab() {
 
   const toggleCalorieLogExpansion = (logId: string) => {
     setExpandedCalorieLogId(prevId => (prevId === logId ? null : logId));
+  };
+
+  const toggleReminderExpansion = (reminderId: string) => {
+    setExpandedReminderId(prevId => (prevId === reminderId ? null : reminderId));
   };
 
   const loadLiveDoseReminders = async (userId: string) => {
@@ -759,6 +770,47 @@ export default function ProfileTab() {
               {profile?.created_at ? new Date(profile.created_at).toLocaleDateString() : 'Recently'}
             </Text>
           </View>
+        </View>
+
+        {/* Live Dose Reminders */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Live Dose Reminders</Text>
+          {loadingLiveReminders ? (
+            <ActivityIndicator size="small" color="#FC7596" />
+          ) : liveReminders.length === 0 ? (
+            <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+              <Text style={styles.noNutritionLogsText}>No live reminders right now.</Text>
+              <Text style={{ fontSize: 14, color: '#6c757d', textAlign: 'center', marginTop: 8, fontStyle: 'italic' }}>Go to Nutrition → Dose Reminder to create medication reminders.</Text>
+            </View>
+          ) : (
+            liveReminders.map((r: any) => {
+              const isExpanded = expandedReminderId === r.id;
+              const sc = r.schedule || {};
+              const times = Array.isArray(sc.timesOfDay) && sc.timesOfDay.length ? sc.timesOfDay.join(', ') : '—';
+              const withFood = sc.withFood ? `${sc.withFood}${sc.foodOffsetMinutes ? ` (${sc.foodOffsetMinutes} min)` : ''}` : '—';
+              return (
+                <TouchableOpacity key={r.id} style={styles.nutritionLogCard} onPress={() => toggleReminderExpansion(r.id)}>
+                  <View style={styles.nutritionLogHeader}>
+                    <Text style={styles.nutritionLogTitle}>{r.custom_item_name} <Text style={{ color: '#6c757d' }}>({r.dosage})</Text></Text>
+                    <Ionicons
+                      name={isExpanded ? "chevron-up-outline" : "chevron-down-outline"}
+                      size={20}
+                      color="#6c757d"
+                    />
+                  </View>
+                  {isExpanded && (
+                    <View style={styles.nutritionLogDetails}>
+                      <Text style={styles.logDetailText}>Person: {r.person_type}</Text>
+                      <Text style={styles.logDetailText}>Type: {r.category}</Text>
+                      <Text style={styles.logDetailText}>Window: {times}</Text>
+                      <Text style={styles.logDetailText}>With food: {withFood}</Text>
+                      <Text style={styles.logDetailText}>Period: {r.start_date} → {r.end_date}</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
+            })
+          )}
         </View>
 
         {/* Community Stats Card */}
@@ -1210,7 +1262,10 @@ export default function ProfileTab() {
                 <Ionicons name="chevron-forward" size={20} color="#6c757d" />
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.settingsOption}>
+              <TouchableOpacity style={styles.settingsOption} onPress={() => {
+                setShowNotificationSettings(true);
+                setShowSettingsModal(false);
+              }}>
                 <Ionicons name="notifications-outline" size={20} color="#495057" />
                 <Text style={styles.settingsOptionText}>Notifications</Text>
                 <Ionicons name="chevron-forward" size={20} color="#6c757d" />
@@ -1420,6 +1475,112 @@ export default function ProfileTab() {
             </View>
           </View>
         </Modal>
+
+        {/* Notification Settings Modal */}
+        <Modal
+          visible={showNotificationSettings}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => setShowNotificationSettings(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Notification Settings</Text>
+                <TouchableOpacity onPress={() => setShowNotificationSettings(false)}>
+                  <Ionicons name="close" size={24} color="#6c757d" />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView style={styles.modalScrollView} showsVerticalScrollIndicator={false}>
+                {/* Enable/Disable Notifications */}
+                <View style={styles.settingSection}>
+                  <View style={styles.settingHeader}>
+                    <View style={styles.settingIconContainer}>
+                      <Ionicons name="notifications" size={20} color="#FC7596" />
+                    </View>
+                    <View style={styles.settingTitleContainer}>
+                      <Text style={styles.settingTitle}>Medication Reminders</Text>
+                      <Text style={styles.settingSubtitle}>Get notified before your medication times</Text>
+                    </View>
+                  </View>
+                  <View style={styles.toggleContainer}>
+                    <View style={styles.toggleInfo}>
+                      <Text style={styles.toggleLabel}>Enable Notifications</Text>
+                      <Text style={styles.toggleDescription}>
+                        Receive popup notifications before your scheduled medication times
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      style={[styles.toggleButton, notificationsEnabled && styles.toggleButtonActive]}
+                      onPress={() => setNotificationsEnabled(!notificationsEnabled)}
+                    >
+                      <View style={[styles.toggleCircle, notificationsEnabled && styles.toggleCircleActive]} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                {/* Notification Timing */}
+                <View style={styles.settingSection}>
+                  <View style={styles.settingHeader}>
+                    <View style={styles.settingIconContainer}>
+                      <Ionicons name="time" size={20} color="#FC7596" />
+                    </View>
+                    <View style={styles.settingTitleContainer}>
+                      <Text style={styles.settingTitle}>Notification Timing</Text>
+                      <Text style={styles.settingSubtitle}>When to show the notification</Text>
+                    </View>
+                  </View>
+                  <View style={styles.timingContainer}>
+                    <Text style={styles.timingLabel}>Show notification</Text>
+                    <View style={styles.timeSelector}>
+                      <TouchableOpacity
+                        style={[styles.timeButton, notificationTimeBefore === 1 && styles.timeButtonActive]}
+                        onPress={() => setNotificationTimeBefore(1)}
+                      >
+                        <Text style={[styles.timeButtonText, notificationTimeBefore === 1 && styles.timeButtonTextActive]}>1 min</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.timeButton, notificationTimeBefore === 5 && styles.timeButtonActive]}
+                        onPress={() => setNotificationTimeBefore(5)}
+                      >
+                        <Text style={[styles.timeButtonText, notificationTimeBefore === 5 && styles.timeButtonTextActive]}>5 min</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.timeButton, notificationTimeBefore === 10 && styles.timeButtonActive]}
+                        onPress={() => setNotificationTimeBefore(10)}
+                      >
+                        <Text style={[styles.timeButtonText, notificationTimeBefore === 10 && styles.timeButtonTextActive]}>10 min</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.timeButton, notificationTimeBefore === 15 && styles.timeButtonActive]}
+                        onPress={() => setNotificationTimeBefore(15)}
+                      >
+                        <Text style={[styles.timeButtonText, notificationTimeBefore === 15 && styles.timeButtonTextActive]}>15 min</Text>
+                      </TouchableOpacity>
+                    </View>
+                    <Text style={styles.timingDescription}>before medication time</Text>
+                  </View>
+                </View>
+
+                {/* Save Button */}
+                <TouchableOpacity
+                  style={styles.saveButton}
+                  onPress={() => {
+                    // Save notification settings
+                    if (notificationManager?.updateNotificationSettings) {
+                      notificationManager.updateNotificationSettings(notificationsEnabled, notificationTimeBefore);
+                    }
+                    setShowNotificationSettings(false);
+                    // TODO: Save to database/local storage for persistence
+                  }}
+                >
+                  <Text style={styles.saveButtonText}>Save Settings</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
       </ImageBackground>
     );
 }
@@ -1522,6 +1683,13 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     flex: 1,
     textAlign: 'right',
+  },
+  helperText: {
+    fontSize: 14,
+    color: '#6c757d',
+    fontStyle: 'italic',
+    marginTop: 8,
+    lineHeight: 20,
   },
   statsContainer: {
     flexDirection: 'row',
@@ -1633,13 +1801,6 @@ const styles = StyleSheet.create({
     padding: 12,
     fontSize: 16,
     backgroundColor: 'white',
-  },
-  saveButton: {
-    backgroundColor: '#FC7596',
-    borderRadius: 8,
-    padding: 16,
-    alignItems: 'center',
-    marginTop: 10,
   },
   saveButtonText: {
     fontSize: 16,
@@ -2044,6 +2205,167 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 14,
     fontWeight: '600',
+  },
+  // Notification Settings Styles
+  modalScrollView: {
+    maxHeight: 500,
+    paddingHorizontal: 4,
+  },
+  settingSection: {
+    marginBottom: 32,
+    backgroundColor: '#FAFAFA',
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: '#F0F0F0',
+  },
+  settingHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 20,
+  },
+  settingIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#FFF5F5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  settingTitleContainer: {
+    flex: 1,
+  },
+  settingTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginBottom: 4,
+  },
+  settingSubtitle: {
+    fontSize: 14,
+    color: '#6B7280',
+    lineHeight: 20,
+  },
+  toggleContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  toggleInfo: {
+    flex: 1,
+    marginRight: 20,
+  },
+  toggleLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 4,
+  },
+  toggleDescription: {
+    fontSize: 14,
+    color: '#6B7280',
+    lineHeight: 20,
+  },
+  toggleButton: {
+    width: 56,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#E5E7EB',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  toggleButtonActive: {
+    backgroundColor: '#FC7596',
+  },
+  toggleCircle: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: 'white',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  toggleCircleActive: {
+    transform: [{ translateX: 24 }],
+  },
+  timingContainer: {
+    paddingVertical: 8,
+  },
+  timingLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  timeSelector: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+    gap: 8,
+  },
+  timeButton: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  timeButtonActive: {
+    backgroundColor: '#FC7596',
+    borderColor: '#FC7596',
+    shadowColor: '#FC7596',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  timeButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  timeButtonTextActive: {
+    color: 'white',
+    fontWeight: '700',
+  },
+  timingDescription: {
+    fontSize: 14,
+    color: '#6B7280',
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
+  saveButton: {
+    backgroundColor: '#FC7596',
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    marginTop: 24,
+    marginBottom: 20,
+    shadowColor: '#FC7596',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
   },
 });
 
