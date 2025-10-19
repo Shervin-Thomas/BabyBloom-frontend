@@ -789,15 +789,15 @@ export default function ProfileTab() {
               const times = Array.isArray(sc.timesOfDay) && sc.timesOfDay.length ? sc.timesOfDay.join(', ') : '—';
               const withFood = sc.withFood ? `${sc.withFood}${sc.foodOffsetMinutes ? ` (${sc.foodOffsetMinutes} min)` : ''}` : '—';
               return (
-                <TouchableOpacity key={r.id} style={styles.nutritionLogCard} onPress={() => toggleReminderExpansion(r.id)}>
-                  <View style={styles.nutritionLogHeader}>
+                <View key={r.id} style={styles.nutritionLogCard}>
+                  <TouchableOpacity style={styles.nutritionLogHeader} onPress={() => toggleReminderExpansion(r.id)}>
                     <Text style={styles.nutritionLogTitle}>{r.custom_item_name} <Text style={{ color: '#6c757d' }}>({r.dosage})</Text></Text>
                     <Ionicons
                       name={isExpanded ? "chevron-up-outline" : "chevron-down-outline"}
                       size={20}
                       color="#6c757d"
                     />
-                  </View>
+                  </TouchableOpacity>
                   {isExpanded && (
                     <View style={styles.nutritionLogDetails}>
                       <Text style={styles.logDetailText}>Person: {r.person_type}</Text>
@@ -805,9 +805,35 @@ export default function ProfileTab() {
                       <Text style={styles.logDetailText}>Window: {times}</Text>
                       <Text style={styles.logDetailText}>With food: {withFood}</Text>
                       <Text style={styles.logDetailText}>Period: {r.start_date} → {r.end_date}</Text>
+                      <TouchableOpacity
+                        style={styles.takenButton}
+                        onPress={async () => {
+                          try {
+                            const { error } = await supabase
+                              .from('medical_schedules')
+                              .update({ 
+                                status: 'completed',
+                                last_taken: new Date().toISOString()
+                              })
+                              .eq('id', r.id);
+                            
+                            if (error) throw error;
+                            
+                            // Refresh the live dose reminders after marking as taken
+                            await loadLiveDoseReminders(session.user.id);
+                            Alert.alert('Success', 'Medication marked as taken!');
+                          } catch (error) {
+                            console.error('Error marking medication as taken:', error);
+                            Alert.alert('Error', 'Failed to mark medication as taken.');
+                          }
+                        }}
+                      >
+                        <Ionicons name="checkmark-circle" size={20} color="white" style={{ marginRight: 8 }} />
+                        <Text style={styles.takenButtonText}>Mark as Taken</Text>
+                      </TouchableOpacity>
                     </View>
                   )}
-                </TouchableOpacity>
+                </View>
               );
             })
           )}
@@ -2147,6 +2173,21 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#495057',
     marginBottom: 4,
+  },
+  takenButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FC7596',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    marginTop: 12,
+  },
+  takenButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
   },
   resultBlock: {
     backgroundColor: '#e9f7ef',

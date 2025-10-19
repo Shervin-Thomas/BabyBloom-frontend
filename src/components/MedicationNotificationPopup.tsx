@@ -11,6 +11,13 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import * as Notifications from 'expo-notifications';
 
+interface MedicationData {
+  medicationName: string;
+  dosage: string;
+  personType: string;
+  timeOfDay: string;
+}
+
 interface MedicationNotificationPopupProps {
   visible: boolean;
   notification: Notifications.Notification | null;
@@ -79,10 +86,11 @@ export default function MedicationNotificationPopup({
 
   if (!notification) return null;
 
-  const medicationName = notification.request.content.data?.medicationName || 'Medication';
-  const dosage = notification.request.content.data?.dosage || '';
-  const personType = notification.request.content.data?.personType || '';
-  const timeOfDay = notification.request.content.data?.timeOfDay || '';
+  const data = notification.request.content.data as unknown as MedicationData | undefined;
+  const medicationName = data?.medicationName || 'Medication';
+  const dosage = data?.dosage || '';
+  const personType = data?.personType || '';
+  const timeOfDay = data?.timeOfDay || '';
 
   return (
     <Modal

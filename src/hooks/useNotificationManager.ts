@@ -148,11 +148,11 @@ export const useNotificationManager = () => {
       const { error } = await supabase
         .from('medical_intake_logs')
         .insert([{
-          user_id: data.userId || 'unknown', // You might need to pass userId
+          user_id: data.userId,
           person_type: data.personType,
           schedule_id: data.scheduleId,
           item_name: data.medicationName,
-          category: data.category || 'medicine',
+          category: 'medicine',
           dosage: data.dosage,
           taken_time: new Date().toISOString(),
           status: 'taken',

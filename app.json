@@ -25,8 +25,12 @@
       "permissions": [
         "android.permission.RECEIVE_BOOT_COMPLETED",
         "android.permission.VIBRATE",
+        "android.permission.WAKE_LOCK",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.VIBRATE",
         "android.permission.WAKE_LOCK"
-      ]
+      ],
+      "package": "com.babybloom333.BabyBloomfrontend"
     },
     "web": {
       "bundler": "metro",
@@ -47,6 +51,12 @@
     "experiments": {
       "typedRoutes": true,
       "tsconfigPaths": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "be328d0e-d711-4021-8307-33a489451d85"
+      }
     }
   }
 }

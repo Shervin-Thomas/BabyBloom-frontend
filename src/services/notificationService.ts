@@ -1,6 +1,7 @@
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import { Platform } from 'react-native';
+import { DateTriggerInput } from 'expo-notifications';
 import { setupAndroidNotificationChannels, requestAndroidNotificationPermissions } from './androidNotificationSetup';
 
 // Configure notification behavior
@@ -9,6 +10,8 @@ Notifications.setNotificationHandler({
     shouldShowAlert: true,
     shouldPlaySound: true,
     shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: true,
   }),
 });
 
@@ -82,8 +85,9 @@ class NotificationService {
           }),
         },
         trigger: {
-          date: reminder.scheduledTime,
-        },
+          channelId: 'medication-reminders',
+          date: reminder.scheduledTime
+        } as DateTriggerInput,
       });
 
       console.log(`Scheduled notification ${notificationId} for ${reminder.scheduledTime}`);
@@ -184,7 +188,9 @@ class NotificationService {
               dosage,
               personType,
               scheduledTime: reminderTime.toISOString(),
-              timeOfDay
+              timeOfDay,
+              userId: schedule.user_id,
+              scheduleId: schedule.id
             },
             scheduledTime: notificationTime
           });

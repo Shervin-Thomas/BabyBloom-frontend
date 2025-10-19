@@ -14,8 +14,6 @@ export const googleAuthService = {
       const redirectUri = AuthSession.makeRedirectUri({
         scheme: 'babybloomfrontend',
         path: 'auth/callback',
-        // Use Expo proxy in development/Expo Go to avoid custom scheme setup issues
-        useProxy: Platform.select({ web: false, default: true }),
         // Provide explicit native callback for reliability on Android/iOS
         native: 'babybloomfrontend://auth/callback',
       });
