@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "BabyBloom-frontend",
-    "slug": "BabyBloom-frontend",
+    "name": "BabyBloom",
+    "slug": "BabyBloom",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/logo.png",
-    "scheme": "babybloomfrontend",
+    "scheme": "babybloom",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
@@ -30,7 +30,7 @@
         "android.permission.VIBRATE",
         "android.permission.WAKE_LOCK"
       ],
-      "package": "com.babybloom333.BabyBloomfrontend"
+      "package": "com.babybloom333.BabyBloom"
     },
     "web": {
       "bundler": "metro",
