@@ -89,6 +89,10 @@ export default function ProfileTab() {
   const [liveReminders, setLiveReminders] = useState<any[]>([]);
   const [loadingLiveReminders, setLoadingLiveReminders] = useState(false);
   const [expandedReminderId, setExpandedReminderId] = useState<string | null>(null);
+  const [sleepLogs, setSleepLogs] = useState<any[]>([]);
+  const [loadingSleepLogs, setLoadingSleepLogs] = useState(false);
+  const [expandedSleepLogId, setExpandedSleepLogId] = useState<string | null>(null);
+  const [showAllSleepLogs, setShowAllSleepLogs] = useState(false);
   
   // Notification settings state
   const [showNotificationSettings, setShowNotificationSettings] = useState(false);
@@ -109,6 +113,7 @@ export default function ProfileTab() {
         await loadUserNutritionLogs(session.user.id);
         await loadUserBabyGrowthLogs(session.user.id);
         await loadUserCalorieLogs(session.user.id);
+        await loadUserSleepLogs(session.user.id);
         await loadLiveDoseReminders(session.user.id);
         setLoading(false);
       } else {
@@ -136,6 +141,7 @@ export default function ProfileTab() {
           await loadUserNutritionLogs(session.user.id);
           await loadUserBabyGrowthLogs(session.user.id);
           await loadUserCalorieLogs(session.user.id);
+          await loadUserSleepLogs(session.user.id);
           await loadLiveDoseReminders(session.user.id);
           setLoading(false);
         } else {
@@ -145,6 +151,7 @@ export default function ProfileTab() {
           setDietPlans([]);
           setNutritionLogs([]);
           setBabyGrowthLogs([]);
+          setSleepLogs([]);
           setAuthMode('login');
           setLoading(false);
         }
@@ -156,6 +163,7 @@ export default function ProfileTab() {
         setNutritionLogs([]);
         setBabyGrowthLogs([]);
         setCalorieLogs([]);
+        setSleepLogs([]);
         setLiveReminders([]);
         setAuthMode('login');
         setLoading(false);
@@ -178,6 +186,7 @@ export default function ProfileTab() {
           await loadUserNutritionLogs(session.user.id); // Also refresh nutrition logs
           await loadUserBabyGrowthLogs(session.user.id); // Also refresh baby growth logs
           await loadUserCalorieLogs(session.user.id); // Also refresh calorie logs
+          await loadUserSleepLogs(session.user.id); // Also refresh sleep logs
         }
       };
 
@@ -362,6 +371,28 @@ export default function ProfileTab() {
     setLoadingCalorieLogs(false);
   };
 
+  const loadUserSleepLogs = async (userId: string) => {
+    setLoadingSleepLogs(true);
+    try {
+      const { data, error } = await supabase
+        .from('sleep_logs')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching sleep logs:', error);
+        Alert.alert('Error', 'Failed to load sleep logs.');
+      } else {
+        setSleepLogs(data || []);
+      }
+    } catch (error) {
+      console.error('Unexpected error loading sleep logs:', error);
+      Alert.alert('Error', 'An unexpected error occurred while loading sleep logs.');
+    }
+    setLoadingSleepLogs(false);
+  };
+
   const toggleCalorieLogExpansion = (logId: string) => {
     setExpandedCalorieLogId(prevId => (prevId === logId ? null : logId));
   };
@@ -406,6 +437,10 @@ export default function ProfileTab() {
 
   const toggleBabyGrowthLogExpansion = (logId: string) => {
     setExpandedBabyGrowthLogId(prevId => (prevId === logId ? null : logId));
+  };
+
+  const toggleSleepLogExpansion = (logId: string) => {
+    setExpandedSleepLogId(prevId => (prevId === logId ? null : logId));
   };
 
   const handleSignOut = async () => {
@@ -1244,6 +1279,54 @@ export default function ProfileTab() {
                             ))}
                           </View>
                         )}
+                        <Text style={styles.logTimestamp}>Logged at: {new Date(log.created_at).toLocaleString()}</Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })
+            )
+          )}
+        </View>
+
+        {/* My Sleep Logs Section */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>My Sleep Logs</Text>
+          <View style={styles.nutritionLogButtonsContainer}>
+            <TouchableOpacity
+              style={styles.nutritionLogActionButton}
+              onPress={() => setShowAllSleepLogs(prev => !prev)}
+            >
+              <Text style={styles.nutritionLogActionButtonText}>
+                {showAllSleepLogs ? 'Hide Logs' : 'View All Logs'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {showAllSleepLogs && (
+            loadingSleepLogs ? (
+              <ActivityIndicator size="small" color="#FC7596" style={{ marginTop: 20 }} />
+            ) : sleepLogs.length === 0 ? (
+              <Text style={styles.noNutritionLogsText}>No sleep logs recorded yet. Go to Sleep Analyzer &gt; Sleep/Wake Logging to log your sleep!</Text>
+            ) : (
+              sleepLogs.map(log => {
+                const isExpanded = expandedSleepLogId === log.id;
+                return (
+                  <TouchableOpacity key={log.id} style={styles.nutritionLogCard} onPress={() => toggleSleepLogExpansion(log.id)}>
+                    <View style={styles.nutritionLogHeader}>
+                      <Text style={styles.nutritionLogTitle}>Sleep Log - {new Date(log.log_date).toLocaleDateString()}</Text>
+                      <Ionicons
+                        name={isExpanded ? "chevron-up-outline" : "chevron-down-outline"}
+                        size={20}
+                        color="#6c757d"
+                      />
+                    </View>
+                    {isExpanded && (
+                      <View style={styles.nutritionLogDetails}>
+                        <Text style={styles.logDetailText}>Sleep Time: {log.sleep_time}</Text>
+                        <Text style={styles.logDetailText}>Wake Time: {log.wake_time}</Text>
+                        <Text style={styles.logDetailText}>Duration: {log.duration_hours} hours</Text>
+                        {log.notes && <Text style={styles.logDetailText}>Notes: {log.notes}</Text>}
                         <Text style={styles.logTimestamp}>Logged at: {new Date(log.created_at).toLocaleString()}</Text>
                       </View>
                     )}

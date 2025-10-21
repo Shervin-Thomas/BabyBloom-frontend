@@ -224,7 +224,8 @@ export default function DeficiencyDetectionScreen() {
 
     const newDeficiencies: DeficiencyResult[] = [];
     for (const nutrient in RDA) {
-      if ((intake[nutrient] || 0) < RDA[nutrient]) {
+      const rdaValue = RDA[nutrient as keyof typeof RDA];
+      if ((intake[nutrient] || 0) < rdaValue) {
         const recommendations: string[] = [];
         FOOD_DATABASE.forEach(food => {
           if (food.nutrients[nutrient]) {
@@ -234,7 +235,7 @@ export default function DeficiencyDetectionScreen() {
 
         newDeficiencies.push({
           name: `${nutrient} Deficiency`,
-          confidence: 1 - ((intake[nutrient] || 0) / RDA[nutrient]),
+          confidence: 1 - ((intake[nutrient] || 0) / (rdaValue || 1)),
           recommendations: recommendations.length > 0 ? recommendations : [`Consider foods rich in ${nutrient}.`],
         });
       }
@@ -397,11 +398,14 @@ export default function DeficiencyDetectionScreen() {
                 <Text style={styles.resultsTitle}>Dietary Intake Detection Results:</Text>
                 <Text style={styles.subResultTitle}>Daily Nutrient Intake:</Text>
                 {Object.keys(dailyNutrientIntake).length > 0 ? (
-                  Object.entries(dailyNutrientIntake).map(([nutrient, amount], index) => (
-                    <Text key={index} style={styles.nutrientText}>
-                      • {nutrient}: {amount.toFixed(1)} {nutrient === 'Iron' || nutrient === 'Calcium' ? 'mg' : 'mcg'} (RDA: {RDA[nutrient as keyof typeof RDA]}{nutrient === 'Iron' || nutrient === 'Calcium' ? 'mg' : 'mcg'})
-                    </Text>
-                  ))
+                  Object.entries(dailyNutrientIntake).map(([nutrient, amount], index) => {
+                    const amountNum = typeof amount === 'number' ? amount : Number(amount as any) || 0;
+                    return (
+                      <Text key={index} style={styles.nutrientText}>
+                         {nutrient}: {amountNum.toFixed(1)} {nutrient === 'Iron' || nutrient === 'Calcium' ? 'mg' : 'mcg'} (RDA: {RDA[nutrient as keyof typeof RDA]}{nutrient === 'Iron' || nutrient === 'Calcium' ? 'mg' : 'mcg'})
+                      </Text>
+                    );
+                  })
                 ) : (
                   <Text style={styles.nutrientText}>No nutrient data available from logged meals.</Text>
                 )}
@@ -492,11 +496,14 @@ export default function DeficiencyDetectionScreen() {
                     {Object.keys(log.daily_nutrient_intake).length > 0 && (
                       <View style={{ marginTop: 5 }}>
                         <Text style={styles.historySubTitle}>Daily Nutrient Intake Summary:</Text>
-                        {Object.entries(log.daily_nutrient_intake).map(([nutrient, amount], i) => (
-                          <Text key={i} style={styles.historyText}>
-                            • {nutrient}: {amount.toFixed(1)} {nutrient === 'Iron' || nutrient === 'Calcium' ? 'mg' : 'mcg'}
-                          </Text>
-                        ))}
+                        {Object.entries(log.daily_nutrient_intake).map(([nutrient, amount], i) => {
+                          const amountNum = typeof amount === 'number' ? amount : Number(amount as any) || 0;
+                          return (
+                            <Text key={i} style={styles.historyText}>
+                              • {nutrient}: {amountNum.toFixed(1)} {nutrient === 'Iron' || nutrient === 'Calcium' ? 'mg' : 'mcg'}
+                            </Text>
+                          );
+                        })}
                       </View>
                     )}
                   </View>
@@ -744,6 +751,16 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
     marginBottom: 15,
     minHeight: 100,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 16,
+    backgroundColor: '#F9FAFB',
+    color: '#374151',
   },
   nutrientText: {
     fontSize: 14,

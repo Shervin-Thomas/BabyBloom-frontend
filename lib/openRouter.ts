@@ -13,7 +13,7 @@ export class OpenRouterService {
       apiKey: finalApiKey,
       defaultHeaders: {
         "HTTP-Referer": "http://localhost:8081", // Replace with your app's actual URL/domain in production
-        "X-Title": "BabyBloom-frontend", // Replace with your app's name in production
+  "X-Title": "BabyBloom-frontend", // Replace with your app's name in production
       },
     });
 
@@ -30,7 +30,7 @@ export class OpenRouterService {
       apiKey: key,
       defaultHeaders: {
         "HTTP-Referer": "http://localhost:8081",
-        "X-Title": "BabyBloom-frontend",
+  "X-Title": "BabyBloom-frontend",
       },
     });
     console.log('🔑 OpenRouter API Key updated.');

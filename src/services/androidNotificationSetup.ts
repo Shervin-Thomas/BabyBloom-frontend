@@ -42,7 +42,6 @@ export const requestAndroidNotificationPermissions = async () => {
           allowAlert: true,
           allowBadge: true,
           allowSound: true,
-          allowAnnouncements: true,
         },
         android: {
           allowAlert: true,

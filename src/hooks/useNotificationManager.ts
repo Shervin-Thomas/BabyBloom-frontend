@@ -22,8 +22,8 @@ export const useNotificationManager = () => {
     notificationTimeBefore: 5,
   });
 
-  const notificationListener = useRef<Notifications.Subscription>();
-  const responseListener = useRef<Notifications.Subscription>();
+  const notificationListener = useRef<Notifications.Subscription | null>(null);
+  const responseListener = useRef<Notifications.Subscription | null>(null);
   const notificationService = useRef(NotificationService.getInstance());
 
   useEffect(() => {

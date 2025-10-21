@@ -288,7 +288,8 @@ export class GrowthPredictionService {
   }
 
   // Main prediction function
-  public async predictGrowth(logs: GrowthLog[], birthDate: Date, userId: string, months: number = 3): Promise<GrowthPrediction[]> {
+  // Added optional `questionnaire` parameter to accept extra baby details from the UI
+  public async predictGrowth(logs: GrowthLog[], birthDate: Date, userId: string, months: number = 3, questionnaire?: any): Promise<GrowthPrediction[]> {
     if (logs.length === 0) return [];
     
     // Get base velocity and predictions
@@ -305,13 +306,41 @@ export class GrowthPredictionService {
     const nutritionAnalysis = this.calculateNutritionScore(nutritionLogs);
     const growthPattern = this.analyzeGrowthPattern(logs);
     const percentileTrends = this.analyzePercentileTrends(logs, birthDate);
+
+    // Apply questionnaire-supplied adjustments (small, safe tweaks)
+    if (questionnaire) {
+      try {
+        if (questionnaire.avgDailyCalories) {
+          const cals = Number(questionnaire.avgDailyCalories) || 0;
+          // Override calorieIntake if provided
+          nutritionAnalysis.calorieIntake = cals;
+          // Small tweak to nutrition score based on reported calories
+          if (cals < 1000) nutritionAnalysis.nutritionScore = Math.max(0, nutritionAnalysis.nutritionScore - 0.1);
+          else if (cals >= 1500) nutritionAnalysis.nutritionScore = Math.min(1, nutritionAnalysis.nutritionScore + 0.05);
+        }
+        if (questionnaire.supplements && Array.isArray(questionnaire.supplements) && questionnaire.supplements.length > 0) {
+          // Slightly increase nutrition score if supplements reported
+          nutritionAnalysis.nutritionScore = Math.min(1, nutritionAnalysis.nutritionScore + 0.03);
+        }
+      } catch (e) {
+        // If anything goes wrong parsing questionnaire data, ignore and continue with defaults
+        console.warn('Error applying questionnaire adjustments:', e);
+      }
+    }
     
     // Calculate overall confidence score
-    const confidenceScore = (
+    let confidenceScore = (
       nutritionAnalysis.nutritionScore * 0.3 +
       growthPattern.trendScore * 0.4 +
       percentileTrends.percentileScore * 0.3
     );
+
+    // Boost confidence slightly if questionnaire provided several fields
+    if (questionnaire) {
+      const providedFields = Object.keys(questionnaire).filter(k => questionnaire[k] !== undefined && questionnaire[k] !== null && questionnaire[k] !== '').length;
+      const confidenceBoost = Math.min(0.15, providedFields * 0.03);
+      confidenceScore = Math.max(0, Math.min(1, confidenceScore + confidenceBoost));
+    }
 
     // Generate predictions with adjustments
     for (let i = 1; i <= months; i++) {

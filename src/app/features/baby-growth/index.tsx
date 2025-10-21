@@ -37,7 +37,7 @@ export default function BabyGrowthScreen() {
     { id: '1', title: 'Growth Logs', route: '/features/baby-growth/logs', iconName: 'create-outline' },
     { id: '2', title: 'Percentile\nComparisons', route: '/features/baby-growth/percentiles', iconName: 'stats-chart-outline' },
     { id: '3', title: 'Growth\nPredictions', route: '/features/baby-growth/predictions', iconName: 'trending-up-outline' },
-    { id: '4', title: 'Alerts &\nReports', route: '/features/baby-growth/reports', iconName: 'alert-circle-outline' },
+    // Alerts & Reports removed per request
   ];
 
   const renderFeatureButton = ({ item }: { item: typeof features[0] }) => (
@@ -69,10 +69,29 @@ export default function BabyGrowthScreen() {
       <View style={[styles.featureGridWrapper, !isAuthenticated && styles.disabledFeatureGrid]}>
           <FlatList
             data={features}
-            renderItem={renderFeatureButton}
+            renderItem={(props) => {
+              const index = props.index;
+              const item = props.item;
+              const isLastOdd = index === features.length - 1 && features.length % 2 === 1;
+              return (
+                <TouchableOpacity
+                  style={[styles.featureButton, isLastOdd ? styles.centerLast : null]}
+                  onPress={() => router.push(item.route as any)}
+                  disabled={!isAuthenticated}
+                >
+                  <View style={styles.iconWrap}>
+                    <Ionicons name={item.iconName as any} size={30} color="#FC7596" />
+                  </View>
+                  <Text style={[styles.featureButtonText, !isAuthenticated && styles.disabledText]} numberOfLines={2}>
+                    {item.title}
+                  </Text>
+                </TouchableOpacity>
+              );
+            }}
             keyExtractor={(item) => item.id}
             contentContainerStyle={styles.featureGrid}
             numColumns={2}
+            columnWrapperStyle={styles.featureRow}
           />
         </View>
         {!isAuthenticated && (
@@ -150,7 +169,7 @@ const styles = StyleSheet.create({
     padding: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    flex: 1,
+    width: '48%',
     margin: 8,
     height: 150,
     shadowColor: '#000',
@@ -158,6 +177,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+  },
+  featureRow: {
+    justifyContent: 'space-between'
+  },
+  centerLast: {
+    alignSelf: 'center'
   },
   iconWrap: {
     width: 48,

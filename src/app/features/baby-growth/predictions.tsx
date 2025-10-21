@@ -14,6 +14,15 @@ export default function PredictionsScreen() {
   const [logs, setLogs] = useState<any[]>([]);
   const [predictions, setPredictions] = useState<any[]>([]);
   const [birthDate, setBirthDate] = useState('');
+  // Questionnaire fields
+  const [currentWeightKg, setCurrentWeightKg] = useState<string>('');
+  const [currentHeightCm, setCurrentHeightCm] = useState<string>('');
+  const [currentHeadCm, setCurrentHeadCm] = useState<string>('');
+  const [feedingType, setFeedingType] = useState<'breast'|'formula'|'mixed'|'solid'|'other' | ''>('');
+  const [feedingFrequencyPerDay, setFeedingFrequencyPerDay] = useState<string>('');
+  const [introduceSolidsAtMonths, setIntroduceSolidsAtMonths] = useState<string>('');
+  const [supplements, setSupplements] = useState<string>('');
+  const [avgDailyCalories, setAvgDailyCalories] = useState<string>('');
   const [status, setStatus] = useState<'normal' | 'monitor' | 'concern'>('normal');
   const [recommendations, setRecommendations] = useState<string[]>([]);
 
@@ -73,7 +82,18 @@ export default function PredictionsScreen() {
       }
 
       // Get comprehensive predictions including nutrition analysis
-      const predictions = await growthPredictionService.predictGrowth(growthLogs, birthDateObj, session.user.id, 3);
+  // Build questionnaire object
+  const questionnaire: any = {};
+  if (currentWeightKg) questionnaire.currentWeightKg = Number(currentWeightKg);
+  if (currentHeightCm) questionnaire.currentHeightCm = Number(currentHeightCm);
+  if (currentHeadCm) questionnaire.currentHeadCm = Number(currentHeadCm);
+  if (feedingType) questionnaire.feedingType = feedingType;
+  if (feedingFrequencyPerDay) questionnaire.feedingFrequencyPerDay = Number(feedingFrequencyPerDay);
+  if (introduceSolidsAtMonths) questionnaire.introduceSolidsAtMonths = Number(introduceSolidsAtMonths);
+  if (supplements) questionnaire.supplements = supplements.split(',').map(s => s.trim()).filter(Boolean);
+  if (avgDailyCalories) questionnaire.avgDailyCalories = Number(avgDailyCalories);
+
+  const predictions = await growthPredictionService.predictGrowth(growthLogs, birthDateObj, session.user.id, 3, questionnaire);
       setPredictions(predictions);
 
       // Get status and recommendations for the latest prediction
@@ -122,9 +142,32 @@ export default function PredictionsScreen() {
           <TextInput
             style={styles.input}
             placeholder="YYYY-MM-DD"
+            placeholderTextColor="#9CA3AF"
             value={birthDate}
             onChangeText={setBirthDate}
           />
+
+          {/* Questionnaire - recommended fields */}
+          <View style={{ marginTop: 16 }}>
+            <Text style={{ fontSize: 16, fontWeight: '600', color: '#374151', marginBottom: 8 }}>Optional: Baby details (recommended)</Text>
+            <TextInput style={styles.input} placeholder="Current weight (kg)" placeholderTextColor="#9CA3AF" value={currentWeightKg} onChangeText={setCurrentWeightKg} keyboardType="numeric" />
+            <TextInput style={[styles.input, { marginTop: 8 }]} placeholder="Current height (cm)" placeholderTextColor="#9CA3AF" value={currentHeightCm} onChangeText={setCurrentHeightCm} keyboardType="numeric" />
+            <TextInput style={[styles.input, { marginTop: 8 }]} placeholder="Head circumference (cm)" placeholderTextColor="#9CA3AF" value={currentHeadCm} onChangeText={setCurrentHeadCm} keyboardType="numeric" />
+
+            <Text style={{ marginTop: 10, color: '#6B7280' }}>Feeding type</Text>
+            <View style={{ flexDirection: 'row', marginTop: 6, gap: 8 }}>
+              {['breast','formula','mixed','solid','other'].map(type => (
+                <TouchableOpacity key={type} onPress={() => setFeedingType(type as any)} style={{ paddingVertical: 8, paddingHorizontal: 12, backgroundColor: feedingType === type ? '#FC7596' : '#F3F4F6', borderRadius: 8 }}>
+                  <Text style={{ color: feedingType === type ? 'white' : '#374151' }}>{type.charAt(0).toUpperCase() + type.slice(1)}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <TextInput style={[styles.input, { marginTop: 8 }]} placeholder="Feeding frequency per day" placeholderTextColor="#9CA3AF" value={feedingFrequencyPerDay} onChangeText={setFeedingFrequencyPerDay} keyboardType="numeric" />
+            <TextInput style={[styles.input, { marginTop: 8 }]} placeholder="Introduce solids at (months)" placeholderTextColor="#9CA3AF" value={introduceSolidsAtMonths} onChangeText={setIntroduceSolidsAtMonths} keyboardType="numeric" />
+            <TextInput style={[styles.input, { marginTop: 8 }]} placeholder="Supplements (comma separated)" placeholderTextColor="#9CA3AF" value={supplements} onChangeText={setSupplements} />
+            <TextInput style={[styles.input, { marginTop: 8 }]} placeholder="Average daily calories (kcal)" placeholderTextColor="#9CA3AF" value={avgDailyCalories} onChangeText={setAvgDailyCalories} keyboardType="numeric" />
+          </View>
           <TouchableOpacity 
             style={styles.generateButton}
             onPress={() => {

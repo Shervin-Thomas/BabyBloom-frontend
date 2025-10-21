@@ -11,12 +11,12 @@ export const googleAuthService = {
     try {
       console.log('🚀 Starting Google sign-in...');
 
-      const redirectUri = AuthSession.makeRedirectUri({
-        scheme: 'babybloomfrontend',
-        path: 'auth/callback',
-        // Provide explicit native callback for reliability on Android/iOS
-        native: 'babybloomfrontend://auth/callback',
-      });
+  const redirectUri = AuthSession.makeRedirectUri({
+    scheme: 'babybloomfrontend',
+    path: 'auth/callback',
+    // Provide explicit native callback for reliability on Android/iOS
+    native: 'babybloomfrontend://auth/callback',
+  });
       console.log('📍 Redirect URI:', redirectUri);
 
       // Use Supabase's built-in OAuth with Expo AuthSession

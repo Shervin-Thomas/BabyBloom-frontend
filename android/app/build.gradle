@@ -89,7 +89,7 @@ android {
 
     namespace 'com.babybloom333.BabyBloomfrontend'
     defaultConfig {
-        applicationId 'com.babybloom333.BabyBloomfrontend'
+    applicationId 'com.babybloom333.BabyBloomfrontend'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

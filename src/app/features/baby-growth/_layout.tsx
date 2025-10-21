@@ -7,7 +7,6 @@ export default function BabyGrowthLayout() {
       <Stack.Screen name="logs" />
       <Stack.Screen name="percentiles" />
       <Stack.Screen name="predictions" />
-      <Stack.Screen name="reports" />
     </Stack>
   );
 }
