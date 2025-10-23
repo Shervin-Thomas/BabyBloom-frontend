@@ -2,3 +2,4 @@ git add .
 git commit -m ""
 git push
 eas update --branch production --message ""
+eas build -p android --profile production

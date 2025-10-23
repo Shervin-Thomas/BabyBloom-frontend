@@ -5,26 +5,30 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/logo.png",
+
     "updates": {
       "enabled": true,
       "checkAutomatically": "ON_LOAD",
       "fallbackToCacheTimeout": 0,
       "url": "https://u.expo.dev/be328d0e-d711-4021-8307-33a489451d85"
     },
+
     "scheme": "babybloom",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+
     "splash": {
       "image": "./assets/images/logo.png",
       "resizeMode": "contain",
       "backgroundColor": "#FC7596"
     },
+
     "ios": {
       "supportsTablet": true,
-      "runtimeVersion": {
-        "policy": "appVersion"
-      }
+      "runtimeVersion": "1.0.0",
+      "bundleIdentifier": "com.babybloom333.BabyBloom"
     },
+
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/logo.png",
@@ -37,15 +41,15 @@
         "android.permission.WAKE_LOCK"
       ],
       "package": "com.babybloom333.BabyBloom",
-      "runtimeVersion": {
-        "policy": "appVersion"
-      }
+      "runtimeVersion": "1.0.0"
     },
+
     "web": {
       "bundler": "metro",
       "output": "static",
       "favicon": "./assets/images/logo.png"
     },
+
     "plugins": [
       "expo-router",
       [
@@ -57,10 +61,12 @@
         }
       ]
     ],
+
     "experiments": {
       "typedRoutes": true,
       "tsconfigPaths": true
     },
+
     "extra": {
       "router": {},
       "eas": {
