@@ -52,9 +52,15 @@ class NotificationService {
       }
 
       // Get push token (for future use with push notifications)
+      // Note: Push notifications are not available in Expo Go SDK 53+
       if (Device.isDevice) {
-        const token = await Notifications.getExpoPushTokenAsync();
-        console.log('Push token:', token.data);
+        try {
+          const token = await Notifications.getExpoPushTokenAsync();
+          console.log('Push token:', token.data);
+        } catch (error) {
+          console.log('Push notifications not available in Expo Go. Use development build for push notifications.');
+          // This is expected in Expo Go SDK 53+, continue with local notifications only
+        }
       } else {
         console.log('Must use physical device for Push Notifications');
       }

@@ -22,6 +22,7 @@ export default function Register({ onSwitchToLogin, setLoading }: RegisterProps)
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [showConfirmationModal, setShowConfirmationModal] = useState(false);
+  const [userRole, setUserRole] = useState<'user' | 'admin'>('user');
 
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('en-US', {
@@ -76,7 +77,8 @@ export default function Register({ onSwitchToLogin, setLoading }: RegisterProps)
           data: {
             full_name: fullName,
             phone: phone,
-            date_of_birth: dateOfBirth.toISOString().split('T')[0]
+            date_of_birth: dateOfBirth.toISOString().split('T')[0],
+            user_role: userRole
           },
           emailRedirectTo: 'https://shervin-thomas.github.io/BabyBloom-frontend/confirmation.html'
         }
@@ -266,6 +268,56 @@ export default function Register({ onSwitchToLogin, setLoading }: RegisterProps)
                 minimumDate={new Date(1900, 0, 1)}
               />
             )}
+            
+            {/* User Role Toggle */}
+            <View style={styles.inputWrapper}>
+              <View style={styles.roleToggleContainer}>
+                <Text style={styles.roleToggleLabel}>Account Type</Text>
+                <View style={styles.roleToggleButtons}>
+                  <TouchableOpacity 
+                    style={[
+                      styles.roleToggleButton, 
+                      userRole === 'user' && styles.roleToggleButtonActive
+                    ]}
+                    onPress={() => setUserRole('user')}
+                  >
+                    <Ionicons 
+                      name="person-outline" 
+                      size={20} 
+                      color={userRole === 'user' ? '#FFFFFF' : '#FC7596'} 
+                      style={styles.roleIcon}
+                    />
+                    <Text style={[
+                      styles.roleToggleButtonText,
+                      userRole === 'user' && styles.roleToggleButtonTextActive
+                    ]}>
+                      User
+                    </Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity 
+                    style={[
+                      styles.roleToggleButton, 
+                      userRole === 'admin' && styles.roleToggleButtonActive
+                    ]}
+                    onPress={() => setUserRole('admin')}
+                  >
+                    <Ionicons 
+                      name="shield-checkmark-outline" 
+                      size={20} 
+                      color={userRole === 'admin' ? '#FFFFFF' : '#FC7596'} 
+                      style={styles.roleIcon}
+                    />
+                    <Text style={[
+                      styles.roleToggleButtonText,
+                      userRole === 'admin' && styles.roleToggleButtonTextActive
+                    ]}>
+                      Admin
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
             
             {/* Register Button */}
             <TouchableOpacity style={styles.registerButton} onPress={handleRegister}>
@@ -583,5 +635,55 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.8)',
     textAlign: 'center',
     fontStyle: 'italic',
+  },
+  // Role Toggle Styles
+  roleToggleContainer: {
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  roleToggleLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  roleToggleButtons: {
+    flexDirection: 'row',
+    backgroundColor: '#F3F4F6',
+    borderRadius: 12,
+    padding: 4,
+  },
+  roleToggleButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    marginHorizontal: 2,
+  },
+  roleToggleButtonActive: {
+    backgroundColor: '#FC7596',
+    shadowColor: '#FC7596',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  roleIcon: {
+    marginRight: 8,
+  },
+  roleToggleButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FC7596',
+  },
+  roleToggleButtonTextActive: {
+    color: '#FFFFFF',
   },
 });

@@ -7,8 +7,6 @@ import { supabase } from 'lib/supabase';
 import { useFocusEffect } from '@react-navigation/native';
 
 export default function TabsLayout() {
-  // This would come from your cart state/context in the future
-  const cartCount = 3; // Mock cart count for demonstration
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -103,7 +101,6 @@ export default function TabsLayout() {
               color={color}
               size={size}
               focused={focused}
-              cartCount={cartCount}
             />
           ),
         }}

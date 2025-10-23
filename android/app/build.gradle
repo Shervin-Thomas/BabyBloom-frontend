@@ -87,9 +87,9 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace 'com.babybloom333.BabyBloomfrontend'
+    namespace 'com.babybloom333.BabyBloom'
     defaultConfig {
-    applicationId 'com.babybloom333.BabyBloomfrontend'
+    applicationId 'com.babybloom333.BabyBloom'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

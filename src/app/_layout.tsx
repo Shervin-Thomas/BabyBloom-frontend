@@ -10,6 +10,8 @@ import { useColorScheme } from '@/components/useColorScheme';
 import { supabase } from 'lib/supabase';
 import CustomSplashScreen from '../components/SplashScreen';
 import NotificationWrapper from '../components/NotificationWrapper';
+import { ShopProvider } from '../../contexts/ShopContext';
+import { adminService } from '../services/adminService';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -41,6 +43,7 @@ function RootLayoutNav() {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
   const [checkingSession, setCheckingSession] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     const checkSession = async () => {
@@ -48,15 +51,30 @@ function RootLayoutNav() {
       const minSplashTime = new Promise(resolve => setTimeout(resolve, 5000));
       
       const { data } = await supabase.auth.getSession();
-      setIsLoggedIn(!!data.session);
+      const sessionExists = !!data.session;
+      setIsLoggedIn(sessionExists);
       setCurrentUserId(data.session?.user?.id || null);
+
+      // Check if user is admin
+      if (sessionExists) {
+        const adminStatus = await adminService.isCurrentUserAdmin();
+        setIsAdmin(adminStatus);
+      }
 
       await minSplashTime;
       setCheckingSession(false);
 
-      supabase.auth.onAuthStateChange((_event, session) => {
-        setIsLoggedIn(!!session);
+      supabase.auth.onAuthStateChange(async (_event, session) => {
+        const sessionExists = !!session;
+        setIsLoggedIn(sessionExists);
         setCurrentUserId(session?.user?.id || null);
+        
+        if (sessionExists) {
+          const adminStatus = await adminService.isCurrentUserAdmin();
+          setIsAdmin(adminStatus);
+        } else {
+          setIsAdmin(false);
+        }
       });
     };
 
@@ -67,24 +85,32 @@ function RootLayoutNav() {
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <NotificationWrapper userId={currentUserId || undefined}>
-        <Stack screenOptions={{ headerShown: false }}>
-          {isLoggedIn ? (
-            <>
-              <Stack.Screen name="(tabs)" />
-              {/* Feature screens opened from Home buttons (hidden from tab bar) */}
-              <Stack.Screen name="features/baby-growth/index" />
-              <Stack.Screen name="features/mood-companion/index" />
-              <Stack.Screen name="features/sleep-analyzer/index" />
-            </>
-          ) : (
-            <>
-              <Stack.Screen name="login" />
-              <Stack.Screen name="register" />
-            </>
-          )}
-        </Stack>
-      </NotificationWrapper>
+      <ShopProvider>
+        <NotificationWrapper userId={currentUserId || undefined}>
+          <Stack screenOptions={{ headerShown: false }}>
+            {isLoggedIn ? (
+              <>
+                {isAdmin ? (
+                  <Stack.Screen name="admin" />
+                ) : (
+                  <>
+                    <Stack.Screen name="(tabs)" />
+                    {/* Feature screens opened from Home buttons (hidden from tab bar) */}
+                    <Stack.Screen name="features/baby-growth/index" />
+                    <Stack.Screen name="features/mood-companion/index" />
+                    <Stack.Screen name="features/sleep-analyzer/index" />
+                  </>
+                )}
+              </>
+            ) : (
+              <>
+                <Stack.Screen name="login" />
+                <Stack.Screen name="register" />
+              </>
+            )}
+          </Stack>
+        </NotificationWrapper>
+      </ShopProvider>
     </ThemeProvider>
   );
 }
