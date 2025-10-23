@@ -1,4 +1,4 @@
 git add .
 git commit -m ""
 git push
-npx expo publish
+eas update --branch production --message ""
